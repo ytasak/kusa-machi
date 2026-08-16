@@ -1,0 +1,562 @@
+/* 新しい人生を1属性ずつ開示するガチャ演出。
+   アプリ本体は明るいライトテーマだが、ここだけは暗く落として
+   確定した値と光だけが見えるようにする。 */
+
+.backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 30;
+  display: flex;
+  overflow-y: auto;
+  padding: calc(20px + env(safe-area-inset-top, 0)) 20px calc(20px + env(safe-area-inset-bottom, 0));
+  background: radial-gradient(120% 82% at 50% 34%, #3a1b2a 0%, #1a1418 62%, #110e10 100%);
+  animation: fadeIn 200ms ease-out;
+
+  /* レア度で変わるのはこの2つだけ。個々のパーツはこれを参照する。 */
+  --tier-color: #ffffff;
+  --tier-glow: rgb(255 255 255 / 20%);
+}
+
+.backdrop[data-tier='1'] {
+  --tier-color: #ffd166;
+  --tier-glow: rgb(255 209 102 / 36%);
+}
+
+.backdrop[data-tier='2'] {
+  --tier-color: #ffffff;
+  --tier-glow: rgb(150 210 255 / 42%);
+}
+
+/* 背後で回る光条。レア度が上がるほど濃くなる。
+   細い筋を等間隔で並べ、中心から外へ薄くなるようマスクで抜く。 */
+.rays {
+  position: fixed;
+  top: 38%;
+  left: 50%;
+  width: 130vmax;
+  height: 130vmax;
+  margin: -65vmax 0 0 -65vmax;
+  pointer-events: none;
+  opacity: 0.12;
+  background: repeating-conic-gradient(
+    from 0deg,
+    var(--tier-color) 0deg 1.6deg,
+    transparent 1.6deg 12deg
+  );
+  -webkit-mask-image: radial-gradient(closest-side, rgb(0 0 0 / 90%) 6%, transparent 46%);
+  mask-image: radial-gradient(closest-side, rgb(0 0 0 / 90%) 6%, transparent 46%);
+  animation: spin 26s linear infinite;
+  transition: opacity 260ms ease-out;
+}
+
+/* 抽選中は中身が画面中央に来るので、光の集まる点もそこへ移す。 */
+.backdrop[data-stage='charge'] .rays {
+  top: 50%;
+}
+
+.backdrop[data-tier='1'] .rays {
+  opacity: 0.3;
+}
+
+.backdrop[data-tier='2'] .rays {
+  opacity: 0.44;
+}
+
+/* 画面のどこを触っても進むための透明な層。上に載る操作要素だけが
+   pointer-events を戻しているので、スキップや CTA はこれに邪魔されない。 */
+.tap {
+  position: fixed;
+  inset: 0;
+  z-index: 1;
+  border: none;
+  padding: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.tap:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 45%);
+  outline-offset: -6px;
+}
+
+/* overflow したときに上が切れないよう、中央寄せは margin で行う。 */
+.content {
+  position: relative;
+  z-index: 2;
+  margin: auto;
+  width: 100%;
+  max-width: 380px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 14px;
+  text-align: center;
+  pointer-events: none;
+}
+
+/* ---- 抽選中の溜め ---- */
+
+.orbWrap {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 132px;
+  height: 132px;
+}
+
+.orbRing {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px dashed rgb(255 255 255 / 26%);
+  animation: spin 6s linear infinite;
+}
+
+.orb {
+  width: 74px;
+  height: 74px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff6b6b, #ff2d7a);
+  box-shadow: 0 0 42px rgb(255 45 122 / 58%);
+  animation: shake 620ms ease-in-out infinite;
+}
+
+.charging {
+  margin: 0;
+  font-size: 14px;
+  letter-spacing: 0.06em;
+  color: rgb(255 255 255 / 78%);
+}
+
+/* ---- 進み具合 ---- */
+
+.pips {
+  display: flex;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pip {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: rgb(255 255 255 / 22%);
+  transition:
+    background 200ms ease-out,
+    transform 200ms ease-out;
+}
+
+.pipOn {
+  background: #ff8fae;
+  transform: scale(1.3);
+}
+
+/* ---- 回転している台 ---- */
+
+.stage {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  /* 項目ごとに高さが変わるとレイアウトが跳ねるので、先に場所を確保する。 */
+  min-height: 200px;
+}
+
+.stepLabel {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.42em;
+  /* letter-spacing は最後の字の後ろにも入る。その分だけ左に戻して中央に見せる。 */
+  text-indent: 0.42em;
+  color: rgb(255 255 255 / 62%);
+}
+
+.frame {
+  display: grid;
+  place-items: center;
+  min-width: 246px;
+  min-height: 98px;
+  padding: 10px 22px;
+  border: 2px solid rgb(255 255 255 / 14%);
+  border-radius: 18px;
+  background: linear-gradient(180deg, rgb(255 255 255 / 10%), rgb(255 255 255 / 3%));
+  transition:
+    border-color 200ms ease-out,
+    box-shadow 260ms ease-out;
+}
+
+.frameLocked {
+  border-color: var(--tier-color);
+  box-shadow:
+    0 0 34px var(--tier-glow),
+    inset 0 0 24px var(--tier-glow);
+  animation: thud 380ms cubic-bezier(0.2, 1.7, 0.3, 1);
+}
+
+/* 激レアだけは枠と数字を虹色にする。ガチャの合図として一番強い。
+   内側は不透明で塗る。透かすと虹が回り込んで数字が読めなくなる。 */
+.backdrop[data-tier='2'] .frameLocked {
+  border-color: transparent;
+  background:
+    linear-gradient(180deg, #33202c, #241a20) padding-box,
+    conic-gradient(from 0deg, #ff5470, #ffd166, #7dffb0, #66e0ff, #b98cff, #ff5470) border-box;
+}
+
+.value {
+  display: block;
+  font-weight: 900;
+  line-height: 1.15;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  color: #fff;
+  text-shadow: 0 2px 18px rgb(0 0 0 / 45%);
+}
+
+.spinning {
+  color: rgb(255 255 255 / 82%);
+  filter: blur(0.6px);
+  animation: jitter 90ms steps(2) infinite;
+}
+
+.backdrop[data-tier='2'] .frameLocked .value {
+  background: linear-gradient(100deg, #ffd9a0, #ff8fae 32%, #b98cff 64%, #66e0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+
+/* レア度の表示。出ない項目でも高さは確保しておく。 */
+.tierSlot {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  min-height: 46px;
+}
+
+.tierBadge {
+  border-radius: 999px;
+  padding: 3px 14px;
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #2a1a10;
+  background: var(--tier-color);
+  animation: pop 420ms cubic-bezier(0.2, 1.8, 0.3, 1);
+}
+
+.legendBadge {
+  color: #221324;
+  background: linear-gradient(100deg, #ffd9a0, #ff8fae 35%, #b98cff 70%, #66e0ff);
+}
+
+.note {
+  font-size: 12px;
+  color: rgb(255 255 255 / 74%);
+  animation: riseIn 300ms ease-out 100ms both;
+}
+
+/* ---- 確定した項目の積み上げ ---- */
+
+.ledger {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.ledgerRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-radius: 12px;
+  background: rgb(255 255 255 / 7%);
+  transition: background 240ms ease-out;
+}
+
+.ledgerRow[data-tier='1'] {
+  background: rgb(255 209 102 / 18%);
+}
+
+.ledgerRow[data-tier='2'] {
+  background: rgb(255 255 255 / 14%);
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 28%);
+}
+
+.ledgerLabel {
+  font-size: 11px;
+  color: rgb(255 255 255 / 55%);
+}
+
+.ledgerValue {
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  overflow-wrap: anywhere;
+  /* 「?」から値に入れ替わる瞬間だけ動く。 */
+  animation: riseIn 280ms cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+}
+
+.ledgerPending {
+  font-size: 14px;
+  font-weight: 700;
+  color: rgb(255 255 255 / 26%);
+}
+
+/* ---- 進め方の案内 ---- */
+
+.footer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: rgb(255 255 255 / 50%);
+  animation: breathe 1.6s ease-in-out infinite;
+}
+
+.skip {
+  pointer-events: auto;
+  border: none;
+  background: none;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  color: rgb(255 255 255 / 62%);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+/* ---- 出し終えたあと ---- */
+
+.rankLabel {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.4em;
+  text-indent: 0.4em;
+  color: rgb(255 255 255 / 55%);
+}
+
+.rank {
+  margin: -6px 0 0;
+  font-size: 64px;
+  font-weight: 900;
+  line-height: 1;
+  letter-spacing: 0.05em;
+  color: var(--tier-color);
+  text-shadow: 0 0 34px var(--tier-glow);
+  animation: stamp 520ms cubic-bezier(0.2, 1.7, 0.3, 1);
+}
+
+.backdrop[data-tier='2'] .rank {
+  background: linear-gradient(100deg, #ffd9a0, #ff8fae 32%, #b98cff 64%, #66e0ff);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: none;
+}
+
+.rankCopy {
+  margin: 0;
+  font-size: 13.5px;
+  color: rgb(255 255 255 / 78%);
+  text-wrap: balance;
+}
+
+.cardSlot {
+  width: 100%;
+  animation: riseIn 420ms cubic-bezier(0.2, 0.9, 0.3, 1.2) 180ms both;
+}
+
+.cta {
+  pointer-events: auto;
+  width: 100%;
+  max-width: 320px;
+  animation: riseIn 380ms ease-out 300ms both;
+}
+
+/* 暗い背景ではブラウザ既定のフォーカスリングが浮くので、自前で描く。 */
+.cta:focus-visible,
+.skip:focus-visible {
+  outline: 2px solid rgb(255 255 255 / 70%);
+  outline-offset: 3px;
+}
+
+/* ---- 中心から弾ける粒 ---- */
+
+.burst {
+  position: fixed;
+  top: 40%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.particle {
+  position: absolute;
+  font-size: 20px;
+  line-height: 1;
+  animation: fly var(--dur) cubic-bezier(0.12, 0.72, 0.3, 1) var(--delay) both;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes shake {
+  0%,
+  100% {
+    transform: translate(0, 0) scale(1);
+  }
+  25% {
+    transform: translate(-3px, 2px) scale(1.04);
+  }
+  50% {
+    transform: translate(2px, -3px) scale(0.98);
+  }
+  75% {
+    transform: translate(3px, 2px) scale(1.03);
+  }
+}
+
+@keyframes jitter {
+  0%,
+  100% {
+    transform: translateY(-1px);
+  }
+  50% {
+    transform: translateY(1px);
+  }
+}
+
+@keyframes thud {
+  0% {
+    transform: scale(1.14);
+  }
+  55% {
+    transform: scale(0.97);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.14);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes stamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.8) rotate(-6deg);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(0.94) rotate(1deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes riseIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes breathe {
+  0%,
+  100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.95;
+  }
+}
+
+@keyframes fly {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2) rotate(0deg);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(calc(-50% + var(--tx)), calc(-50% + var(--ty))) scale(var(--sc))
+      rotate(var(--rot));
+  }
+}
+
+/* 動きを減らす設定では、回り続けるものと弾ける粒をすべて止める。
+   開示そのものは順番どおり進むので、演出の意図は残る。 */
+@media (prefers-reduced-motion: reduce) {
+  .burst {
+    display: none;
+  }
+
+  .rays,
+  .orbRing,
+  .orb,
+  .spinning,
+  .hint {
+    animation: none;
+  }
+
+  .backdrop,
+  .frameLocked,
+  .tierBadge,
+  .note,
+  .rank,
+  .cardSlot,
+  .cta,
+  .ledgerRow {
+    animation-duration: 1ms;
+  }
+}
