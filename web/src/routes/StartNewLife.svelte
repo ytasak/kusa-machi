@@ -42,7 +42,8 @@
       <Icon name="sparkle" size={40} filled />
     </div>
 
-    <h1 class={styles.title}>今日の人生</h1>
+    <h1 class={styles.title}>クサマチ</h1>
+    <p class={styles.tagline}>今日の人生を、ひとつ。</p>
     <p class={styles.lead}>
       毎日ひとつ、その日だけのあなたが配られます。<br />
       Likeは1日10回。0時にすべてリセットされます。
