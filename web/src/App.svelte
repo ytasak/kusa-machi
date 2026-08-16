@@ -6,6 +6,7 @@
   import TabBar from './components/TabBar.svelte';
   import Modal from './components/Modal.svelte';
   import StartNewLife from './routes/StartNewLife.svelte';
+  import CookieBlocked from './routes/CookieBlocked.svelte';
   import Discover from './routes/Discover.svelte';
   import ReceivedLikes from './routes/ReceivedLikes.svelte';
   import SentLikes from './routes/SentLikes.svelte';
@@ -69,6 +70,9 @@
     <p class={ui.error}>{session.error}</p>
     <button class={ui.secondary} onclick={() => bootstrap()}>再読み込み</button>
   </div>
+{:else if session.cookiesBlocked}
+  <!-- Cookie が保存されない状態では何をしても CSRF で弾かれる。先に案内する。 -->
+  <CookieBlocked />
 {:else if !session.personaGenerated}
   <!-- 当日の Persona が無ければ市場では何もできないため、開始画面はタブの
        中に収まらず、アプリ全体を占有する。 -->

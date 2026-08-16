@@ -36,6 +36,29 @@ func TestHomeCreatesParticipantAndIssuesCookie(t *testing.T) {
 	}
 }
 
+// フロントエンドは cookie_received を見て、ブラウザが Cookie を保存して
+// いないこと（＝サードパーティ遮断で遊べない状態）を判定する。
+func TestHomeReportsWhetherTheCookieCameBack(t *testing.T) {
+	app := apptest.New(t)
+	c := app.NewClient()
+
+	if first := c.Home(t); first.CookieReceived {
+		t.Fatal("cookie_received must be false on the very first request")
+	}
+	if second := c.Home(t); !second.CookieReceived {
+		t.Fatal("cookie_received must be true once the client sends the cookie back")
+	}
+
+	// Cookie を保存しないブラウザの再現。毎回 false のままになる。
+	blocked := app.NewClient()
+	blocked.DiscardCookies()
+	for i := range 2 {
+		if home := blocked.Home(t); home.CookieReceived {
+			t.Fatalf("request %d: cookie_received must stay false when cookies are dropped", i+1)
+		}
+	}
+}
+
 func TestCookieIsIssuedHttpOnly(t *testing.T) {
 	app := apptest.New(t)
 

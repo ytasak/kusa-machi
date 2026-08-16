@@ -25,6 +25,9 @@ type homeResponse struct {
 	HasUnseenLikes    bool         `json:"has_unseen_likes"`
 	HasUnseenMatches  bool         `json:"has_unseen_matches"`
 	CSRFToken         string       `json:"csrf_token"`
+	// CookieReceived が2回続けて false なら、ブラウザが Cookie を保存して
+	// いない。iframe 埋め込み時にサードパーティ Cookie を遮断されると起きる。
+	CookieReceived bool `json:"cookie_received"`
 }
 
 // Home はホーム画面の状態を丸ごと返す。この処理が動く時点で、セッション
@@ -41,6 +44,7 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 		GameDate:       clock.FormatGameDate(s.GameDate),
 		RemainingLikes: matching.DailyLikeBudget,
 		CSRFToken:      s.Participant.CsrfToken,
+		CookieReceived: s.CookieReceived,
 	}
 
 	state, err := h.q.GetHomeState(ctx, sqlc.GetHomeStateParams{

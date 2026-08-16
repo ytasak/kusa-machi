@@ -116,6 +116,10 @@ func (a *App) NewClient() *Client {
 	return &Client{app: a, http: &http.Client{Jar: jar}}
 }
 
+// DiscardCookies は Cookie を一切保存しないブラウザにする。
+// サードパーティ Cookie を遮断する iOS Safari の再現に使う。
+func (c *Client) DiscardCookies() { c.http.Jar = nil }
+
 // Response はデコード済みの API レスポンス。
 type Response struct {
 	Status int
@@ -187,6 +191,7 @@ type HomeResponse struct {
 	HasUnseenLikes    bool         `json:"has_unseen_likes"`
 	HasUnseenMatches  bool         `json:"has_unseen_matches"`
 	CSRFToken         string       `json:"csrf_token"`
+	CookieReceived    bool         `json:"cookie_received"`
 }
 
 // PersonaCard は公開 Persona のペイロードに対応する。

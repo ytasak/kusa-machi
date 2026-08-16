@@ -23,6 +23,10 @@ type Session struct {
 	Participant sqlc.Participant
 	GameDate    time.Time
 	Now         time.Time
+	// CookieReceived はリクエストが Cookie を伴って届いたかどうか。
+	// 初回アクセスでは false になる。2回目以降も false のままなら、
+	// ブラウザが Cookie を保存していない（サードパーティ遮断など）。
+	CookieReceived bool
 }
 
 // WithSession は匿名 Cookie を読むか発行し、ハンドラが動く前に当日の
@@ -47,9 +51,10 @@ func WithSession(q *sqlc.Queries, clk clock.Clock, cfg participant.CookieConfig)
 			}
 
 			ctx := context.WithValue(r.Context(), sessionKey, Session{
-				Participant: p,
-				GameDate:    gameDate,
-				Now:         now,
+				Participant:    p,
+				GameDate:       gameDate,
+				Now:            now,
+				CookieReceived: ok,
 			})
 			next.ServeHTTP(w, r.WithContext(ctx))
 		})

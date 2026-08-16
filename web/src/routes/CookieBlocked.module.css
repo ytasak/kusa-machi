@@ -1,0 +1,52 @@
+.screen {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 16px;
+  padding: 32px 24px calc(32px + env(safe-area-inset-bottom, 0));
+  text-align: center;
+  background: linear-gradient(170deg, #fff1f3 0%, var(--bg) 55%);
+}
+
+.mark {
+  display: grid;
+  place-items: center;
+  width: 72px;
+  height: 72px;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text-muted);
+  box-shadow: var(--shadow-card);
+}
+
+.title {
+  margin: 0;
+  font-size: 21px;
+  font-weight: 800;
+  text-wrap: balance;
+}
+
+.lead {
+  display: grid;
+  gap: 6px;
+  margin: 0;
+  font-size: 14px;
+  color: var(--text-muted);
+}
+
+.lead p {
+  margin: 0;
+  text-wrap: balance;
+}
+
+.cta {
+  width: 100%;
+  max-width: 320px;
+  margin-top: 8px;
+  /* a 要素にボタンの見た目を借りているので、文字の並びだけ揃える */
+  display: block;
+  text-align: center;
+  text-decoration: none;
+}

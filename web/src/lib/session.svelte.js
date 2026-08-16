@@ -27,6 +27,8 @@ export const session = $state({
   clockOffsetMs: 0,
   /** ゲーム日が終わり、新しい人生を始める必要がある状態になったら true。 */
   dayEnded: false,
+  /** ブラウザが Cookie を保存していないと分かったら true。 */
+  cookiesBlocked: false,
 });
 
 /** ブラウザの時計ずれを補正したサーバ時刻（ミリ秒）。 */
@@ -82,12 +84,26 @@ export async function refreshHome() {
   return home;
 }
 
-/** 初期ロード。エラーは投げずに画面へ表示する。 */
+/**
+ * 初期ロード。エラーは投げずに画面へ表示する。
+ *
+ * サードパーティ Cookie を遮断するブラウザ（古い iOS Safari など）では、
+ * kusa の iframe に埋め込まれた状態で Cookie が保存されない。そのまま進めても
+ * リクエストのたびに別人になり、CSRF エラーで何もできないので、ここで
+ * 見分けて案内画面に切り替える。
+ *
+ * 1回目は Cookie が無いのが当たり前なので、cookie_received が false のときだけ
+ * もう一度だけ叩いて、発行した Cookie が返ってくるかを確かめる。
+ */
 export async function bootstrap() {
   session.loading = true;
   session.error = null;
   try {
-    await refreshHome();
+    const home = await refreshHome();
+    if (!home.cookie_received) {
+      const retry = await refreshHome();
+      session.cookiesBlocked = !retry.cookie_received;
+    }
   } catch (e) {
     session.error = errorMessage(e);
   } finally {

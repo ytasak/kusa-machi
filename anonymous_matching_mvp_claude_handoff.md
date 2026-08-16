@@ -98,8 +98,19 @@ Cookie の属性:
 - `HttpOnly`
 - `Secure`
 - `SameSite=None`
+- `Partitioned`
 - `Path=/`
 - `Domain` は明示しない
+
+> **改訂メモ（実装時に追加）**
+> `Partitioned` は当初の仕様には無かったが、kusa の iframe から見ると
+> このアプリはサードパーティであり、`SameSite=None` だけではサードパーティ
+> Cookie を遮断するブラウザ（古い iOS Safari など）で Cookie が保存されない。
+> 保存されないとリクエストのたびに別の Participant が作られ、CSRF トークンが
+> 一致せず何も操作できなくなる。`Partitioned` を付けると埋め込み元サイトごとに
+> 分離された領域へ保存され、遮断下でも identity が保てる。
+> なお `Partitioned` に未対応のブラウザでは依然として Cookie が保存されない。
+> その場合は §16 の「遊べません」画面へ誘導する。
 
 ## `Participant`
 1ゲーム日ぶんの技術的な参加者。
@@ -695,6 +706,15 @@ MVP の主要画面はちょうど次のとおり:
 - Match アニメーション
 - 23:55 の5分前警告
 - 00:00 の終了
+- 「この画面では遊べません」（Cookie が保存されない環境の行き止まり — §3 を参照）
+
+> **改訂メモ（実装時に追加）**
+> ブラウザが Cookie を保存しない場合、リクエストのたびに別人になり
+> 何をしても CSRF エラーになる。エラーを繰り返し見せるより、そう分かった
+> 時点でアプリ全体を差し替え、最上位のタブで開く導線だけを出す。
+> 判定は `GET /api/home` の `cookie_received` で行う。初回は Cookie が無いのが
+> 当たり前なので、`false` のときだけもう一度だけ叩き、2回連続で `false` なら
+> 保存されていないと見なす。
 
 ---
 
@@ -993,13 +1013,18 @@ HTTP との対応:
   "match_count": 2,
   "has_unseen_likes": true,
   "has_unseen_matches": false,
-  "csrf_token": "..."
+  "csrf_token": "...",
+  "cookie_received": true
 }
 ```
 
 Persona が未生成の場合:
 - `persona_generated=false`
 - `persona` は null でよい
+
+`cookie_received` は、このリクエストが Cookie を伴って届いたかどうか。
+初回アクセスでは `false`。2回続けて `false` ならブラウザが Cookie を
+保存していないので、フロントエンドは §16 の「遊べません」画面に切り替える。
 
 ---
 
