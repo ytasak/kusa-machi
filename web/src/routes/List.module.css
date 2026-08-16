@@ -6,7 +6,14 @@
 
 .done {
   margin: 0;
-  font-size: 13px;
-  color: #77736c;
+  font-size: 12.5px;
+  color: var(--text-muted);
   text-align: right;
+}
+
+.buttonInner {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }

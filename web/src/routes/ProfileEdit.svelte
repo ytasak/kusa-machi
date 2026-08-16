@@ -1,9 +1,10 @@
 <script>
   import ui from '../components/ui.module.css';
   import styles from './ProfileEdit.module.css';
+  import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
   import { session, updateProfile, withDayGuard } from '../lib/session.svelte.js';
-  import { goHome } from '../lib/nav.svelte.js';
+  import { goMyPage } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
   const LIMITS = { name: 20, hobby: 30, bio: 60 };
@@ -47,13 +48,18 @@
 </script>
 
 <section class={ui.screen}>
-  <header class={ui.header}>
-    <button class={ui.back} onclick={goHome}>← ホーム</button>
+  <div class={ui.header}>
+    <button class={ui.back} onclick={goMyPage} aria-label="マイページに戻る">
+      <Icon name="back" size={18} />
+    </button>
     <h1 class={ui.title}>プロフィール編集</h1>
-  </header>
+  </div>
 
   {#if session.persona}
-    <PersonaCard persona={session.persona} badge="あなた" />
+    <PersonaCard persona={session.persona} variant="hero" badge="あなた" />
+    <p class={styles.hint}>
+      年齢・性別・身長・職業・年収・学歴は今日のあなたの設定です。変更はできません。
+    </p>
 
     <form class={styles.form} onsubmit={save}>
       <div class={styles.field}>
@@ -63,7 +69,7 @@
             {lengths.name} / {LIMITS.name}
           </span>
         </div>
-        <input class={styles.input} id="name" bind:value={name} maxlength={LIMITS.name} />
+        <input class={styles.input} id="name" bind:value={name} maxlength={LIMITS.name} placeholder="呼ばれたい名前" />
       </div>
 
       <div class={styles.field}>
@@ -73,7 +79,7 @@
             {lengths.hobby} / {LIMITS.hobby}
           </span>
         </div>
-        <input class={styles.input} id="hobby" bind:value={hobby} maxlength={LIMITS.hobby} />
+        <input class={styles.input} id="hobby" bind:value={hobby} maxlength={LIMITS.hobby} placeholder="休日にしていること" />
       </div>
 
       <div class={styles.field}>
@@ -83,7 +89,7 @@
             {lengths.bio} / {LIMITS.bio}
           </span>
         </div>
-        <input class={styles.input} id="bio" bind:value={bio} maxlength={LIMITS.bio} />
+        <input class={styles.input} id="bio" bind:value={bio} maxlength={LIMITS.bio} placeholder="ひとことどうぞ" />
       </div>
 
       <p class={styles.hint}>すべて任意です。空欄にするとカードに表示されません。URLは登録できません。</p>

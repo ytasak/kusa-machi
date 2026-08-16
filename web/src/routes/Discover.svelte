@@ -2,12 +2,12 @@
   import { onMount } from 'svelte';
   import styles from './Discover.module.css';
   import ui from '../components/ui.module.css';
+  import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
   import MatchAnimation from '../components/MatchAnimation.svelte';
   import { api, ApiError } from '../lib/api.js';
   import { session, withDayGuard } from '../lib/session.svelte.js';
   import { discover, currentCard, consumeCurrent, dropFromQueue, ensureCards } from '../lib/discover.svelte.js';
-  import { goHome } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
   const LIKE_FLASH_MS = 450;
@@ -36,8 +36,6 @@
     }
     if (e.code === 'LikeLimitExceeded') {
       session.remainingLikes = 0;
-      message = errorMessage(e);
-      return;
     }
     message = errorMessage(e);
   }
@@ -90,15 +88,13 @@
   }
 </script>
 
-<section class={ui.screen}>
-  <header class={ui.header}>
-    <button class={ui.back} onclick={goHome}>← ホーム</button>
+<section class={styles.screen}>
+  <div class={styles.topRow}>
     <h1 class={ui.title}>探す</h1>
-  </header>
-
-  <div class={styles.meta}>
-    <span class={styles.likeBudget}>残りLike {session.remainingLikes} / 10</span>
-    <span class={styles.receivedBadge}>Likeされた {session.receivedLikeCount}</span>
+    <span class={styles.receivedBadge}>
+      <Icon name="heart" size={13} filled />
+      Likeされた {session.receivedLikeCount}
+    </span>
   </div>
 
   {#if message}
@@ -107,22 +103,36 @@
 
   {#if card}
     <div class={styles.stage}>
-      <PersonaCard persona={card} />
+      <PersonaCard persona={card} variant="hero" />
       {#if likeFlash}
         <div class={styles.likeFlash}>LIKE</div>
       {/if}
     </div>
 
     <div class={ui.actions}>
-      <button class={ui.pass} onclick={onPass} disabled={busy}>パス</button>
-      <button class={ui.like} onclick={onLike} disabled={busy || outOfLikes}>Like</button>
+      <button
+        class="{ui.circle} {ui.circlePass}"
+        onclick={onPass}
+        disabled={busy}
+        aria-label="パス"
+      >
+        <Icon name="close" size={26} />
+      </button>
+      <button
+        class="{ui.circle} {ui.circleLike}"
+        onclick={onLike}
+        disabled={busy || outOfLikes}
+        aria-label="Like"
+      >
+        <Icon name="heart" size={30} filled />
+      </button>
     </div>
   {:else if discover.loading}
     <p class={ui.empty}>読み込み中...</p>
   {:else if discover.error}
     <p class={ui.error}>{discover.error}</p>
   {:else}
-    <p class={ui.empty}>いま出会える人がいません。しばらくしてからまた見てみてください。</p>
+    <p class={ui.empty}>いま出会える人がいません。<br />しばらくしてからまた見てみてください。</p>
   {/if}
 </section>
 

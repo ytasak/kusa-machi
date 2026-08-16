@@ -3,80 +3,104 @@
 .screen {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-  padding-bottom: 32px;
+  gap: 14px;
+  padding: 16px 16px 24px;
 }
 
 .header {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  margin: -2px 0 2px;
 }
 
 .title {
   margin: 0;
-  font-size: 18px;
+  font-size: 20px;
   font-weight: 700;
 }
 
 .back {
-  border: 1px solid #d8d4cd;
-  background: #fff;
-  color: #1c1b1a;
-  border-radius: 8px;
-  padding: 6px 10px;
-  font-size: 13px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border: none;
+  border-radius: 50%;
+  background: var(--surface);
+  color: var(--text);
+  box-shadow: var(--shadow-card);
   cursor: pointer;
 }
 
 .primary {
   border: none;
-  border-radius: 10px;
-  background: #1c1b1a;
+  border-radius: var(--radius-control);
+  background: var(--accent-gradient);
   color: #fff;
-  padding: 14px 16px;
+  padding: 15px 16px;
   font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-raised);
+}
+
+.secondary {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--text);
+  padding: 13px 16px;
+  font-size: 14px;
   font-weight: 700;
   cursor: pointer;
 }
 
-.primary:disabled {
-  opacity: 0.5;
+.primary:disabled,
+.secondary:disabled {
+  opacity: 0.45;
+  box-shadow: none;
   cursor: default;
 }
 
-.like {
-  border: none;
-  border-radius: 10px;
-  background: #e8543f;
-  color: #fff;
-  padding: 14px 16px;
-  font-size: 15px;
-  font-weight: 700;
-  cursor: pointer;
-  flex: 1;
-}
-
-.pass {
-  border: 1px solid #d8d4cd;
-  border-radius: 10px;
-  background: #fff;
-  color: #4a4843;
-  padding: 14px 16px;
-  font-size: 15px;
-  cursor: pointer;
-  flex: 1;
-}
-
-.like:disabled,
-.pass:disabled {
-  opacity: 0.5;
-  cursor: default;
-}
-
+/* Round action buttons on the discover screen. */
 .actions {
   display: flex;
-  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  gap: 28px;
+  padding: 4px 0 8px;
+}
+
+.circle {
+  display: grid;
+  place-items: center;
+  width: 62px;
+  height: 62px;
+  border-radius: 50%;
+  border: none;
+  cursor: pointer;
+}
+
+.circlePass {
+  background: var(--surface);
+  color: #9a9296;
+  box-shadow: var(--shadow-card);
+}
+
+.circleLike {
+  background: var(--accent-gradient);
+  color: #fff;
+  box-shadow: var(--shadow-raised);
+  width: 72px;
+  height: 72px;
+}
+
+.circle:disabled {
+  opacity: 0.45;
+  box-shadow: none;
+  cursor: default;
 }
 
 .list {
@@ -89,20 +113,30 @@
 }
 
 .empty {
-  color: #77736c;
+  color: var(--text-muted);
   font-size: 14px;
+  text-align: center;
+  padding: 40px 12px;
 }
 
 .error {
-  color: #b03030;
-  font-size: 14px;
+  color: #c0392b;
+  font-size: 13.5px;
+  background: #fdeeec;
+  border-radius: 10px;
+  padding: 10px 12px;
+  margin: 0;
 }
 
 .notice {
-  background: #fff5d6;
-  border: 1px solid #e8d9a0;
-  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+  border-radius: 12px;
   padding: 10px 12px;
-  font-size: 14px;
+  font-size: 13.5px;
   font-weight: 700;
+  margin: 0;
 }

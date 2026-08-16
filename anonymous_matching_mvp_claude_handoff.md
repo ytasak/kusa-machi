@@ -585,26 +585,47 @@ No chat / DM.
 
 ---
 
-# 14. Home Screen
+# 14. Navigation and マイページ
 
-Home is the navigation hub.
-No persistent bottom tab navigation.
+> **Revised.** This section originally read "Home is the navigation hub. No
+> persistent bottom tab navigation." That was reversed on 2026-08-16: a
+> persistent bottom tab bar is easier to reach one-handed on a phone, which is
+> the only form factor that matters here. The Home screen is replaced by
+> マイページ, and the countdown moves to a persistent header so it stays visible
+> on every screen.
+
+## Persistent chrome
+
+A header is shown on every screen once today's Persona exists:
+
+1. daily countdown
+2. remaining Likes `N / 10`
+
+A bottom tab bar is shown on every screen once today's Persona exists.
+Tabs, in navigation priority order:
+
+1. 探す
+2. Likeされた
+3. Match
+4. マイページ
+
+Unseen Likes and unseen Matches put a dot on their tab.
+
+Before today's Persona exists, the "新しい人生を始める" screen takes over the
+whole app: no header, no tab bar.
+
+## マイページ
 
 Primary information:
 1. today's own Persona card
 2. remaining Likes `N / 10`
 3. received Like count
 4. today's Match count
-5. daily countdown
 
-Navigation priority:
-1. 探す
-2. Likeされた
-3. Match
-4. 送信済みLike
-5. プロフィール編集
+Pushed screens, reached from マイページ and providing a route back to it:
 
-Other screens must provide a route back Home.
+- 送信済みLike
+- プロフィール編集
 
 ---
 
@@ -630,12 +651,12 @@ Persona is publicly visible immediately after generation, even if all B fields a
 
 MVP has exactly these main screens:
 
-1. Home
-2. Discover
-3. Received Likes
-4. Sent Likes
-5. Matches
-6. Profile Edit
+1. Discover （tab 探す）
+2. Received Likes （tab Likeされた）
+3. Matches （tab Match）
+4. マイページ （tab; replaces the original Home screen — see §14）
+5. Sent Likes （pushed from マイページ）
+6. Profile Edit （pushed from マイページ）
 
 Supporting UI / modal states:
 - Start New Life

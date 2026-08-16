@@ -2,11 +2,11 @@
   import { onMount } from 'svelte';
   import ui from '../components/ui.module.css';
   import styles from './List.module.css';
+  import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
   import MatchAnimation from '../components/MatchAnimation.svelte';
   import { api, ApiError } from '../lib/api.js';
   import { session, withDayGuard } from '../lib/session.svelte.js';
-  import { goHome } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
   let personas = $state([]);
@@ -22,8 +22,19 @@
 
   onMount(async () => {
     try {
-      const res = await api.get('/api/likes/received');
-      personas = res.personas;
+      // The received list alone cannot say whether this persona was already
+      // liked back, so the day's sent likes are read too: otherwise a persona
+      // you already matched with still shows a "Likeを返す" button.
+      const [received, sent] = await Promise.all([
+        api.get('/api/likes/received'),
+        api.get('/api/likes/sent'),
+      ]);
+
+      personas = received.personas;
+      outcome = Object.fromEntries(
+        sent.personas.map((p) => [p.id, p.matched ? 'matched' : 'liked']),
+      );
+
       // Opening the screen is what clears the badge server-side.
       session.hasUnseenLikes = false;
       session.receivedLikeCount = personas.length;
@@ -54,23 +65,16 @@
       }
       if (e instanceof ApiError && e.code === 'LikeLimitExceeded') {
         session.remainingLikes = 0;
-        message = errorMessage(e);
-        return;
       }
       message = errorMessage(e);
     }
   }
-
-  function badgeFor(persona) {
-    return outcome[persona.id] === 'matched' ? 'MATCH' : null;
-  }
 </script>
 
 <section class={ui.screen}>
-  <header class={ui.header}>
-    <button class={ui.back} onclick={goHome}>← ホーム</button>
+  <div class={ui.header}>
     <h1 class={ui.title}>Likeされた</h1>
-  </header>
+  </div>
 
   {#if message}<p class={ui.error}>{message}</p>{/if}
 
@@ -79,19 +83,19 @@
   {:else if error}
     <p class={ui.error}>{error}</p>
   {:else if personas.length === 0}
-    <p class={ui.empty}>まだLikeされていません。</p>
+    <p class={ui.empty}>まだLikeされていません。<br />カードを見てもらえるのを待ちましょう。</p>
   {:else}
     <ul class={ui.list}>
       {#each personas as persona (persona.id)}
         <li class={styles.item}>
-          <PersonaCard {persona} badge={badgeFor(persona)} />
+          <PersonaCard {persona} badge={outcome[persona.id] === 'matched' ? 'MATCH' : null} />
           {#if outcome[persona.id] === 'matched'}
             <p class={styles.done}>マッチしました</p>
           {:else if outcome[persona.id] === 'liked'}
             <p class={styles.done}>Like済み</p>
           {:else}
-            <button class={ui.like} onclick={() => likeBack(persona)} disabled={outOfLikes}>
-              Likeを返す
+            <button class={ui.primary} onclick={() => likeBack(persona)} disabled={outOfLikes}>
+              <span class={styles.buttonInner}><Icon name="heart" size={16} filled />Likeを返す</span>
             </button>
           {/if}
         </li>

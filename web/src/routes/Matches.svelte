@@ -4,7 +4,6 @@
   import PersonaCard from '../components/PersonaCard.svelte';
   import { api } from '../lib/api.js';
   import { session } from '../lib/session.svelte.js';
-  import { goHome } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
   let personas = $state([]);
@@ -27,17 +26,16 @@
 </script>
 
 <section class={ui.screen}>
-  <header class={ui.header}>
-    <button class={ui.back} onclick={goHome}>← ホーム</button>
+  <div class={ui.header}>
     <h1 class={ui.title}>Match</h1>
-  </header>
+  </div>
 
   {#if loading}
     <p class={ui.empty}>読み込み中...</p>
   {:else if error}
     <p class={ui.error}>{error}</p>
   {:else if personas.length === 0}
-    <p class={ui.empty}>まだマッチしていません。</p>
+    <p class={ui.empty}>まだマッチしていません。<br />Likeを送ってみましょう。</p>
   {:else}
     <ul class={ui.list}>
       {#each personas as persona (persona.id)}
