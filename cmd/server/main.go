@@ -18,9 +18,12 @@ import (
 	"syscall"
 	"time"
 
+	"kusamachi/internal/clock"
 	"kusamachi/internal/config"
 	"kusamachi/internal/db"
 	httpx "kusamachi/internal/http"
+	"kusamachi/internal/participant"
+	"kusamachi/internal/persona"
 )
 
 func main() {
@@ -69,9 +72,20 @@ func serve(cfg config.Config) error {
 	}
 	defer pool.Close()
 
+	router := httpx.NewRouter(httpx.Deps{
+		Pool:      pool,
+		Clock:     clock.Real{},
+		Generator: persona.NewGenerator(),
+		Cookie: participant.CookieConfig{
+			Secure:   cfg.CookieSecure,
+			SameSite: cfg.CookieSameSite,
+		},
+		WebDistDir: cfg.WebDistDir,
+	})
+
 	srv := &http.Server{
 		Addr:              cfg.Addr,
-		Handler:           httpx.NewRouter(httpx.Deps{WebDistDir: cfg.WebDistDir}),
+		Handler:           router,
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
