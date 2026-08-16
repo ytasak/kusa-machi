@@ -1,0 +1,60 @@
+.meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: #56534e;
+}
+
+.likeBudget {
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+}
+
+.receivedBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  background: #fff;
+  border: 1px solid #e3e0da;
+  border-radius: 999px;
+  padding: 3px 10px;
+  font-size: 12px;
+}
+
+.stage {
+  position: relative;
+}
+
+.likeFlash {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgb(232 84 63 / 82%);
+  border-radius: 14px;
+  color: #fff;
+  font-size: 34px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  animation: flash 450ms ease-out;
+  pointer-events: none;
+}
+
+@keyframes flash {
+  from {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .likeFlash {
+    animation: none;
+  }
+}

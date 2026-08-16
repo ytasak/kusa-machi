@@ -1,0 +1,68 @@
+.backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgb(24 20 18 / 88%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 20;
+}
+
+.panel {
+  width: 100%;
+  max-width: 420px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  align-items: stretch;
+  text-align: center;
+}
+
+.title {
+  margin: 0;
+  color: #ffd9a0;
+  font-size: 40px;
+  font-weight: 800;
+  letter-spacing: 0.08em;
+  animation: pop 400ms ease-out;
+}
+
+.copy {
+  margin: 0;
+  color: #f4efe8;
+  font-size: 14px;
+}
+
+.pair {
+  display: grid;
+  gap: 10px;
+}
+
+.close {
+  border: none;
+  border-radius: 10px;
+  background: #fff;
+  color: #1c1b1a;
+  padding: 13px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+@keyframes pop {
+  from {
+    transform: scale(0.6);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .title {
+    animation: none;
+  }
+}

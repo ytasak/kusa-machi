@@ -1,0 +1,12 @@
+.item {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.done {
+  margin: 0;
+  font-size: 13px;
+  color: #77736c;
+  text-align: right;
+}

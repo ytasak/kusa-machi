@@ -1,0 +1,52 @@
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.labelRow {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.label {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.counter {
+  font-size: 12px;
+  color: #77736c;
+  font-variant-numeric: tabular-nums;
+}
+
+.counterOver {
+  color: #b03030;
+}
+
+.input {
+  border: 1px solid #d8d4cd;
+  border-radius: 8px;
+  padding: 10px;
+  font-size: 15px;
+  background: #fff;
+}
+
+.hint {
+  margin: 0;
+  font-size: 12px;
+  color: #77736c;
+}
+
+.saved {
+  margin: 0;
+  font-size: 13px;
+  color: #2f7a44;
+}

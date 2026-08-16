@@ -1,0 +1,107 @@
+/* Shared building blocks used across screens. */
+
+.screen {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding-bottom: 32px;
+}
+
+.header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.back {
+  border: 1px solid #d8d4cd;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.primary {
+  border: none;
+  border-radius: 10px;
+  background: #1c1b1a;
+  color: #fff;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.primary:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.like {
+  border: none;
+  border-radius: 10px;
+  background: #e8543f;
+  color: #fff;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  flex: 1;
+}
+
+.pass {
+  border: 1px solid #d8d4cd;
+  border-radius: 10px;
+  background: #fff;
+  color: #4a4843;
+  padding: 14px 16px;
+  font-size: 15px;
+  cursor: pointer;
+  flex: 1;
+}
+
+.like:disabled,
+.pass:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+.actions {
+  display: flex;
+  gap: 10px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.empty {
+  color: #77736c;
+  font-size: 14px;
+}
+
+.error {
+  color: #b03030;
+  font-size: 14px;
+}
+
+.notice {
+  background: #fff5d6;
+  border: 1px solid #e8d9a0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 14px;
+  font-weight: 700;
+}

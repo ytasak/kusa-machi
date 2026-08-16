@@ -1,0 +1,48 @@
+.card {
+  position: relative;
+  background: #fff;
+  border: 1px solid #e3e0da;
+  border-radius: 14px;
+  padding: 16px;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 6%);
+}
+
+.name {
+  margin: 0 0 10px;
+  font-size: 18px;
+  font-weight: 700;
+  word-break: break-word;
+}
+
+.rows {
+  display: grid;
+  grid-template-columns: 6em 1fr;
+  gap: 6px 12px;
+  margin: 0;
+  font-size: 14px;
+}
+
+.label {
+  margin: 0;
+  color: #77736c;
+}
+
+.value {
+  margin: 0;
+  word-break: break-word;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.badge {
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: #e8543f;
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
