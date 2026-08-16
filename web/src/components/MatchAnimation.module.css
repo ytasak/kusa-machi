@@ -57,6 +57,7 @@
   margin: 0;
   color: #f4efe8;
   font-size: 14px;
+  text-wrap: balance;
   animation: riseIn 400ms ease-out 140ms both;
 }
 

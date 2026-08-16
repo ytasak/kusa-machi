@@ -44,10 +44,10 @@
 
     <h1 class={styles.title}>クサマチ</h1>
     <p class={styles.tagline}>今日の人生を、ひとつ。</p>
-    <p class={styles.lead}>
-      毎日ひとつ、その日だけのあなたが配られます。<br />
-      Likeは1日10回。0時にすべてリセットされます。
-    </p>
+    <div class={styles.lead}>
+      <p>毎日ひとつ、その日だけのあなたが配られます。</p>
+      <p>Likeは1日10回。0時にすべて消えます。</p>
+    </div>
 
     {#if error}<p class={ui.error}>{error}</p>{/if}
 

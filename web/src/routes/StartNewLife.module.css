@@ -24,6 +24,7 @@
 .title {
   margin: 0;
   font-size: 27px;
+  text-wrap: balance;
   font-weight: 800;
   letter-spacing: 0.02em;
 }
@@ -37,10 +38,17 @@
 }
 
 .lead {
+  display: grid;
+  gap: 4px;
   margin: 0;
   font-size: 14px;
   color: var(--text-muted);
-  max-width: 20em;
+}
+
+.lead p {
+  margin: 0;
+  /* 1行に数文字だけ残るのを防ぎ、行の長さを揃える */
+  text-wrap: balance;
 }
 
 .cta {

@@ -38,6 +38,11 @@ body {
   background: var(--bg);
   color: var(--text);
   -webkit-font-smoothing: antialiased;
+
+  /* 日本語を文節単位で折り返す。これが無いと「配られま／す。」のように
+     行末で単語が割れる。未対応のブラウザでは無視されるだけ。 */
+  word-break: auto-phrase;
+  line-break: strict;
 }
 
 #app {

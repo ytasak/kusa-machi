@@ -95,7 +95,8 @@
   {#if session.persona}
     <PersonaCard persona={session.persona} variant="hero" badge="あなた" />
     <p class={styles.hint}>
-      年齢・性別・身長・職業・年収・学歴は今日のあなたの設定です。変更はできません。
+      年齢・性別・身長・職業・年収・学歴は<span class={styles.keep}>今日のあなたの設定</span
+      >です。変更はできません。
     </p>
 
     <div class={styles.photoBlock}>
@@ -107,7 +108,6 @@
         {#if session.persona.photo_url}
           <button class={styles.remove} onclick={onRemovePhoto} disabled={photoBusy}>削除</button>
         {/if}
-        <p class={styles.hint}>正方形に切り抜いて保存します。写真も0時に消えます。</p>
       </div>
       <input
         class={styles.file}
@@ -117,6 +117,9 @@
         onchange={onPickPhoto}
       />
     </div>
+    <!-- 補足はカードの外に出す。中に入れるとアバターとボタンに挟まれて
+         幅が半分になり、狭い画面で3行に割れる。 -->
+    <p class={styles.hint}>正方形に切り抜いて保存します。写真も0時に消えます。</p>
 
     {#if photoError}<p class={ui.error}>{photoError}</p>{/if}
 
