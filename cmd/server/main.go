@@ -18,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	"kusamachi/internal/cleanup"
 	"kusamachi/internal/clock"
 	"kusamachi/internal/config"
 	"kusamachi/internal/db"
@@ -72,9 +73,14 @@ func serve(cfg config.Config) error {
 	}
 	defer pool.Close()
 
+	gameClock := clock.Real{}
+
+	// Physical deletion of previous days; correctness does not depend on it.
+	go cleanup.NewJob(pool, gameClock).Run(ctx, cfg.CleanupInterval)
+
 	router := httpx.NewRouter(httpx.Deps{
 		Pool:      pool,
-		Clock:     clock.Real{},
+		Clock:     gameClock,
 		Generator: persona.NewGenerator(),
 		Cookie: participant.CookieConfig{
 			Secure:   cfg.CookieSecure,

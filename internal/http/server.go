@@ -65,6 +65,9 @@ func NewRouter(deps Deps) http.Handler {
 			r.Get("/discover", h.Discover)
 			r.Post("/likes", h.CreateLike)
 			r.Post("/passes", h.CreatePass)
+			r.Get("/likes/received", h.ReceivedLikes)
+			r.Get("/likes/sent", h.SentLikes)
+			r.Get("/matches", h.Matches)
 		})
 	})
 
