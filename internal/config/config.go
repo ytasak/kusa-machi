@@ -13,6 +13,7 @@ import (
 // Config はサーバが必要とする設定をすべて持つ。既定値は本番向けで、
 // ローカル開発では環境変数で上書きする（README 参照）。
 type Config struct {
+	// Addr は ADDR、または PaaS が注入する PORT から決まる。
 	Addr        string
 	DatabaseURL string
 	WebDistDir  string
@@ -37,6 +38,16 @@ func Load() (Config, error) {
 		CookieSecure:    true,
 		CookieSameSite:  http.SameSiteNoneMode,
 		CleanupInterval: time.Hour,
+	}
+
+	// PaaS はリッスンポートを PORT で注入するため、ADDR より優先する。
+	// これが無いとプラットフォームのヘルスチェックが届かない。
+	if v := os.Getenv("PORT"); v != "" {
+		port, err := strconv.Atoi(v)
+		if err != nil || port < 1 || port > 65535 {
+			return Config{}, fmt.Errorf("PORT: %q は有効なポート番号ではありません", v)
+		}
+		cfg.Addr = ":" + v
 	}
 
 	if v := os.Getenv("COOKIE_SECURE"); v != "" {

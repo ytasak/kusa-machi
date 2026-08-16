@@ -78,6 +78,64 @@ make run         # :8080 で API と web/dist を同一 Origin で配信
 
 <http://localhost:8080> を開く。
 
+## Railway へのデプロイ
+
+HTTPS が必要なため（Cookie の `Secure` + `SameSite=None` は平文 http では成立しない）、
+公開には Railway を使う。
+
+### 秘密情報の扱い
+
+**このリポジトリにはデプロイ用の認証情報を一切置かない。** 具体的には:
+
+- Railway は GitHub 連携でリポジトリを直接見に行き、push を検知して自分でビルドする。
+  そのため **GitHub 側にも Railway のトークンを登録する必要がない**
+- 本番の `DATABASE_URL` は Railway の変数参照 `${{ Postgres.DATABASE_URL }}` で解決する。
+  接続文字列そのものをどこかに貼り付ける操作は発生しない
+- `.github/workflows/ci.yml` はテストとビルドしかしないので Secrets を使わない
+- `railway.json` に含まれるのはビルド方法とヘルスチェックパスだけで、識別情報は無い
+- 実値を入れた `.env` は `.gitignore` 済み
+
+将来 GitHub Actions からデプロイしたくなった場合にのみ `RAILWAY_TOKEN` が必要になる。
+そのときはリポジトリの Settings → Secrets and variables → Actions に登録し、
+ワークフローからは `${{ secrets.RAILWAY_TOKEN }}` で参照する。現在の構成では不要。
+
+### Railway 側で行う作業
+
+1. 新規プロジェクトを作り、**Deploy from GitHub repo** で `ytasak/kusa-machi` を選ぶ
+   （Railway の GitHub App にこのリポジトリへのアクセスを許可する）
+2. 同じプロジェクトに **New → Database → Add PostgreSQL** を追加する
+3. Web サービスの **Variables** に次の1件だけを追加する
+
+   ```text
+   DATABASE_URL = ${{ Postgres.DATABASE_URL }}
+   ```
+
+   Postgres サービスの名前が異なる場合はその名前に合わせる。内部ネットワーク用の
+   接続文字列なので、外向きの通信量が発生しない
+4. **Settings → Networking → Generate Domain** で HTTPS ドメインを発行する
+5. （任意）**Volume** を `/app/data/photos` にマウントする。付けない場合、
+   再デプロイでその日のプロフィール写真が消える。ゲームデータは毎日リセット
+   されるため、付けなくても実害は当日ぶんの写真だけ
+
+### 設定不要なもの
+
+| 変数 | 理由 |
+|---|---|
+| `PORT` | Railway が注入し、アプリがそれを優先して読む |
+| `COOKIE_SECURE` / `COOKIE_SAMESITE` | 未設定時の既定値 `true` / `none` が本番の正しい値 |
+| `PHOTO_DIR` / `WEB_DIST_DIR` | Dockerfile が設定済み |
+
+マイグレーションはサーバ起動時に自動で適用されるため、リリースコマンドの設定も不要。
+
+### デプロイ後に確認すること
+
+- `https://<発行されたドメイン>/api/health` が `{"status":"ok"}` を返す
+- ブラウザで開いて「新しい人生を始める」まで通る
+- 別 Origin のページに iframe で埋め込んで動く（HTTPS になって初めて
+  `SameSite=None` が本番条件で検証できる）
+- 数日ぶんの請求を確認する。Hobby の $5 は定額ではなく下限であり、
+  実消費が超えれば加算される
+
 ### 1 コンテナでの起動
 
 ```bash
@@ -91,6 +149,7 @@ docker run --rm -p 8080:8080 \
 
 | 変数 | 既定値 | 説明 |
 |---|---|---|
+| `PORT` | （未設定） | 設定されていれば `ADDR` より優先する。Railway などの PaaS が注入する |
 | `ADDR` | `:8080` | リッスンアドレス |
 | `DATABASE_URL` | `postgres://kusa:kusa@localhost:5433/kusamachi?sslmode=disable` | 接続先 |
 | `WEB_DIST_DIR` | `web/dist` | 配信するフロントエンドビルド |

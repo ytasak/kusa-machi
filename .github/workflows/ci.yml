@@ -1,0 +1,70 @@
+name: CI
+
+# テストとビルドだけを行う。デプロイは Railway が GitHub 連携で直接行うため、
+# このワークフローは Secrets を一切必要としない。
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        # 結合テスト用の使い捨て DB。この認証情報は CI ランナー内でしか
+        # 到達できず、秘密情報ではない。
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: kusa
+          POSTGRES_PASSWORD: kusa
+          POSTGRES_DB: kusamachi_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U kusa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: gofmt
+        run: |
+          unformatted=$(gofmt -l .)
+          if [ -n "$unformatted" ]; then
+            echo "gofmt がかかっていないファイル:"
+            echo "$unformatted"
+            exit 1
+          fi
+
+      - name: go vet
+        run: go vet ./...
+
+      - name: go test
+        # 結合テストは TEST_DATABASE_URL がある場合のみ実行される。
+        env:
+          TEST_DATABASE_URL: postgres://kusa:kusa@localhost:5432/kusamachi_test?sslmode=disable
+        run: go test -race ./...
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: フロントエンドのビルド
+        run: |
+          npm --prefix web ci
+          npm --prefix web run build
+
+      - name: Docker イメージのビルド
+        # 本番と同じ 1 コンテナ構成がビルドできることを確認する。
+        run: docker build -t kusa-machi:ci .
