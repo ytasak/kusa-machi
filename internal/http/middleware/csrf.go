@@ -9,13 +9,13 @@ import (
 	"kusamachi/internal/http/response"
 )
 
-// CSRFHeader carries the daily token on mutating requests.
+// CSRFHeader は更新系リクエストで日次トークンを運ぶヘッダ。
 const CSRFHeader = "X-CSRF-Token"
 
-// CSRF rejects any mutating request that does not carry today's participant
-// token. The token is per participant and therefore per game day, so a token
-// from a previous day is reported as DayExpired: a tab left open across
-// midnight must be told to start a new life rather than shown a security error.
+// CSRF は当日の participant のトークンを持たない更新系リクエストをすべて拒否する。
+// トークンは participant 単位、すなわちゲーム日単位なので、前日のトークンは
+// DayExpired として返す。日付をまたいで開きっぱなしのタブには、セキュリティ
+// エラーではなく「新しい人生を始める」よう促すべきだから。
 func CSRF(q *sqlc.Queries) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

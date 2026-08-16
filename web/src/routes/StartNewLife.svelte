@@ -7,8 +7,7 @@
   import { errorMessage } from '../lib/errors.js';
   import { go, SCREENS } from '../lib/nav.svelte.js';
 
-  // The generation animation runs for a moment, then every attribute is
-  // revealed at once.
+  // 生成アニメーションを少しのあいだ見せてから、全属性を一度に開示する。
   const REVEAL_DELAY_MS = 1200;
 
   let generating = $state(false);

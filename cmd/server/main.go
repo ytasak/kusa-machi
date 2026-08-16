@@ -1,10 +1,10 @@
-// Command server runs the anonymous matching MVP: API + static frontend.
+// Command server は匿名マッチング MVP を起動する。API と静的フロントエンドの両方を配信する。
 //
-// Usage:
+// 使い方:
 //
-//	server              start the HTTP server (migrations run on boot)
-//	server migrate up   apply migrations and exit
-//	server migrate down roll migrations back and exit (local development only)
+//	server              HTTP サーバを起動する（起動時にマイグレーションを実行）
+//	server migrate up   マイグレーションを適用して終了する
+//	server migrate down マイグレーションを巻き戻して終了する（ローカル開発専用）
 package main
 
 import (
@@ -81,7 +81,7 @@ func serve(cfg config.Config) error {
 		return err
 	}
 
-	// Physical deletion of previous days; correctness does not depend on it.
+	// 前日分の物理削除。正しさがこのジョブに依存することはない。
 	go cleanup.NewJob(pool, gameClock, photos).Run(ctx, cfg.CleanupInterval)
 
 	router := httpx.NewRouter(httpx.Deps{

@@ -5,8 +5,8 @@
   import { ticker } from '../lib/ticker.svelte.js';
   import { countdown } from '../lib/format.js';
 
-  // The countdown is permanent, so it lives in the header rather than on one
-  // screen: whichever tab is open, the day's remaining time is visible.
+  // カウントダウンは常時表示なので、特定の画面ではなくヘッダーに置く。
+  // どのタブを開いていてもその日の残り時間が見える。
   const remaining = $derived(countdown(remainingMsFrom(ticker.now)));
 </script>
 

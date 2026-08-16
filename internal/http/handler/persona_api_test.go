@@ -169,7 +169,7 @@ func TestProfileUpdate(t *testing.T) {
 		t.Fatalf("name = %v, want trimmed さとし", card.Name)
 	}
 
-	// Blank values clear the field so the card can omit the row entirely.
+	// 空白だけの値はフィールドをクリアし、カードから項目ごと消えるようにする。
 	res = c.Do(t, http.MethodPatch, "/api/persona/profile", map[string]any{"name": "   "})
 	res.RequireStatus(t, http.StatusOK)
 
@@ -197,11 +197,11 @@ func TestProfileRejectsInvalidInput(t *testing.T) {
 		body map[string]any
 		code apperr.Code
 	}{
-		{"newline", map[string]any{"bio": "あ\nい"}, apperr.CodeInvalidProfileInput},
-		{"url", map[string]any{"bio": "https://example.com"}, apperr.CodeInvalidProfileInput},
-		{"too long", map[string]any{"name": strings.Repeat("あ", 21)}, apperr.CodeInvalidProfileInput},
-		{"system attribute", map[string]any{"age": 20}, apperr.CodeInvalidRequest},
-		{"system attribute with valid field", map[string]any{"name": "x", "annual_income": 9999}, apperr.CodeInvalidRequest},
+		{"改行", map[string]any{"bio": "あ\nい"}, apperr.CodeInvalidProfileInput},
+		{"URL", map[string]any{"bio": "https://example.com"}, apperr.CodeInvalidProfileInput},
+		{"文字数超過", map[string]any{"name": strings.Repeat("あ", 21)}, apperr.CodeInvalidProfileInput},
+		{"システム生成属性", map[string]any{"age": 20}, apperr.CodeInvalidRequest},
+		{"正当な項目に混ぜたシステム生成属性", map[string]any{"name": "x", "annual_income": 9999}, apperr.CodeInvalidRequest},
 	}
 
 	for _, tc := range cases {
@@ -211,7 +211,7 @@ func TestProfileRejectsInvalidInput(t *testing.T) {
 		})
 	}
 
-	// The persona's A attributes must be untouched by the rejected payloads.
+	// 拒否されたペイロードによって Persona の A属性が変わってはいけない。
 	res := c.Do(t, http.MethodGet, "/api/persona/me", nil)
 	res.RequireStatus(t, http.StatusOK)
 	var card apptest.PersonaCard
@@ -235,8 +235,8 @@ func TestHTMLInProfileIsStoredAsText(t *testing.T) {
 	if card.Bio == nil || *card.Bio != payload {
 		t.Fatalf("bio = %v, want the raw text preserved", card.Bio)
 	}
-	// encoding/json escapes < and > so the payload can never break out of a
-	// script context on the client side.
+	// encoding/json が < と > をエスケープするため、ペイロードがクライアント側の
+	// script コンテキストを抜け出すことはない。
 	if strings.Contains(string(res.Body), "<script>") {
 		t.Fatalf("raw html leaked into the JSON body: %s", res.Body)
 	}
@@ -253,7 +253,7 @@ func TestCSRFIsRequiredForMutations(t *testing.T) {
 	res = c.DoWithCSRF(t, http.MethodPost, "/api/persona", nil, "not-the-token")
 	res.RequireError(t, apperr.CodeInvalidCSRF)
 
-	// A rejected mutation must not have created anything.
+	// 拒否された更新は何も作ってはいけない。
 	var count int
 	if err := app.Pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM personas`).Scan(&count); err != nil {
 		t.Fatalf("count personas: %v", err)
@@ -274,8 +274,8 @@ func TestYesterdaysCSRFTokenReportsDayExpired(t *testing.T) {
 
 	app.Clock.Advance(24 * time.Hour)
 
-	// The tab is still open: it holds yesterday's token and does not know the
-	// day rolled over.
+	// タブは開きっぱなしで前日のトークンを持ったまま、日付が変わったことを
+	// 知らない状態。
 	res := c.DoWithCSRF(t, http.MethodPatch, "/api/persona/profile", map[string]any{"name": "x"}, yesterdayToken)
 	res.RequireError(t, apperr.CodeDayExpired)
 }
@@ -285,7 +285,7 @@ func TestNewGameDayStartsANewLife(t *testing.T) {
 	c := app.NewClient()
 	yesterday := c.Start(t)
 
-	app.Clock.Set(app.Clock.Now().Add(12 * time.Hour)) // crosses 00:00 JST
+	app.Clock.Set(app.Clock.Now().Add(12 * time.Hour)) // JST の 00:00 をまたぐ
 
 	home := c.Home(t)
 	if home.GameDate != "2026-08-17" {
@@ -300,7 +300,7 @@ func TestNewGameDayStartsANewLife(t *testing.T) {
 		t.Fatal("the previous day's persona was reused")
 	}
 
-	// Both participants exist until the cleanup job removes the old one.
+	// クリーンアップジョブが古い方を消すまで、両方の participant が存在する。
 	var participants int
 	if err := app.Pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM participants`).Scan(&participants); err != nil {
 		t.Fatalf("count participants: %v", err)

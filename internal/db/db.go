@@ -1,4 +1,4 @@
-// Package db owns the PostgreSQL connection pool and schema migrations.
+// Package db は PostgreSQL の接続プールとスキーマのマイグレーションを担う。
 package db
 
 import (
@@ -11,12 +11,12 @@ import (
 	migratepg "github.com/golang-migrate/migrate/v4/database/postgres"
 	"github.com/golang-migrate/migrate/v4/source/iofs"
 	"github.com/jackc/pgx/v5/pgxpool"
-	_ "github.com/jackc/pgx/v5/stdlib" // database/sql driver used by golang-migrate
+	_ "github.com/jackc/pgx/v5/stdlib" // golang-migrate が使う database/sql ドライバ
 
 	"kusamachi/migrations"
 )
 
-// Connect opens a pgx pool and verifies it can reach the database.
+// Connect は pgx のプールを開き、DB に到達できることを確認する。
 func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	pool, err := pgxpool.New(ctx, databaseURL)
 	if err != nil {
@@ -29,7 +29,7 @@ func Connect(ctx context.Context, databaseURL string) (*pgxpool.Pool, error) {
 	return pool, nil
 }
 
-// Migrate applies every pending migration embedded in the binary.
+// Migrate はバイナリに埋め込まれた未適用のマイグレーションをすべて適用する。
 func Migrate(databaseURL string) error {
 	m, closeFn, err := migrator(databaseURL)
 	if err != nil {
@@ -43,7 +43,7 @@ func Migrate(databaseURL string) error {
 	return nil
 }
 
-// MigrateDown rolls every migration back. Only intended for local development.
+// MigrateDown はすべてのマイグレーションを巻き戻す。ローカル開発専用。
 func MigrateDown(databaseURL string) error {
 	m, closeFn, err := migrator(databaseURL)
 	if err != nil {

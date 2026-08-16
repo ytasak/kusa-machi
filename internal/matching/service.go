@@ -14,19 +14,19 @@ import (
 	"kusamachi/internal/db/sqlc"
 )
 
-// Service performs the like and pass transactions. Both are written so that the
-// database, not the application, is the thing enforcing the market rules.
+// Service は Like と Pass のトランザクションを実行する。どちらも、市場のルールを
+// 強制するのがアプリケーションではなくデータベースになるように書かれている。
 type Service struct {
 	pool *pgxpool.Pool
 	q    *sqlc.Queries
 }
 
-// NewService builds the service on a connection pool.
+// NewService は接続プールの上にサービスを構築する。
 func NewService(pool *pgxpool.Pool) *Service {
 	return &Service{pool: pool, q: sqlc.New(pool)}
 }
 
-// LikeResult is what the client needs after spending a like.
+// LikeResult は Like を1つ消費した後にクライアントが必要とする情報。
 type LikeResult struct {
 	RemainingLikes int
 	Matched        bool
@@ -34,16 +34,16 @@ type LikeResult struct {
 	Target         sqlc.Persona
 }
 
-// Like spends one like on the target and creates a match if the like is mutual.
+// Like は対象に Like を1つ消費し、相互 Like なら Match を作る。
 //
-// The transaction locks both personas of the pair in normalised order. That
-// single ordering rule gives three properties at once:
-//   - the actor's like budget cannot be exceeded by parallel tabs, because every
-//     like by this actor must first take the actor's row lock;
-//   - two people liking each other at the same moment cannot both miss the
-//     other's like and end up unmatched;
-//   - locks are always taken low id first, so the two cases above can never
-//     deadlock against each other.
+// このトランザクションはペアの両 Persona を正規化した順でロックする。
+// この「順序を決める」一点だけで、次の3つが同時に成立する:
+//   - 複数タブから同時に Like しても予算を超えない。この実行者の Like は必ず
+//     実行者自身の行ロックを先に取る必要があるため
+//   - 二人が同じ瞬間に相互 Like しても、双方が相手の Like を見落として
+//     Match が成立しないという事態が起きない
+//   - ロックは常に id の小さい方から取るため、上記2つのケースが互いに
+//     デッドロックすることがない
 func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UUID, gameDate time.Time) (LikeResult, error) {
 	if actor.ID == targetID {
 		return LikeResult{}, apperr.SelfActionNotAllowed
@@ -53,7 +53,7 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 	if err != nil {
 		return LikeResult{}, fmt.Errorf("begin like transaction: %w", err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck // no-op once committed
+	defer tx.Rollback(ctx) //nolint:errcheck // コミット済みなら何もしない
 
 	q := s.q.WithTx(tx)
 
@@ -72,8 +72,8 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		return LikeResult{}, fmt.Errorf("load target persona: %w", err)
 	}
 
-	// Duplicate is checked before the budget so a retry of an already-counted
-	// like reports AlreadyLiked instead of eating another like.
+	// 重複判定を予算判定より先に行う。すでに計上済みの Like をリトライしたとき、
+	// もう1つ消費するのではなく AlreadyLiked を返すため。
 	duplicate, err := q.LikeExists(ctx, sqlc.LikeExistsParams{
 		FromPersonaID: actor.ID,
 		ToPersonaID:   target.ID,
@@ -140,13 +140,13 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 	return result, nil
 }
 
-// PassResult is what the client needs after a pass.
+// PassResult は Pass の後にクライアントが必要とする情報。
 type PassResult struct {
 	PassCount        int
 	ExcludedForToday bool
 }
 
-// Pass records a pass against the target, capping at three per day.
+// Pass は対象への Pass を記録する。1日あたり3回で打ち止め。
 func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UUID, gameDate time.Time) (PassResult, error) {
 	if actor.ID == targetID {
 		return PassResult{}, apperr.SelfActionNotAllowed
@@ -156,7 +156,7 @@ func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 	if err != nil {
 		return PassResult{}, fmt.Errorf("begin pass transaction: %w", err)
 	}
-	defer tx.Rollback(ctx) //nolint:errcheck // no-op once committed
+	defer tx.Rollback(ctx) //nolint:errcheck // コミット済みなら何もしない
 
 	q := s.q.WithTx(tx)
 
@@ -175,7 +175,7 @@ func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		return PassResult{}, fmt.Errorf("load target persona: %w", err)
 	}
 
-	// A liked or matched persona is out of the pass flow for the rest of the day.
+	// Like 済み・Match 済みの相手は、その日はもう Pass の対象にならない。
 	liked, err := q.LikeExists(ctx, sqlc.LikeExistsParams{
 		FromPersonaID: actor.ID,
 		ToPersonaID:   target.ID,
@@ -193,7 +193,7 @@ func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		ToPersonaID:   target.ID,
 	})
 	if errors.Is(err, pgx.ErrNoRows) {
-		// The conditional upsert refused to go past three.
+		// 条件付き upsert が3回を超える更新を拒否した。
 		return PassResult{}, apperr.PassLimitReached
 	}
 	if err != nil {
@@ -214,8 +214,8 @@ func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 	}, nil
 }
 
-// lockPair takes the two persona row locks in normalised order. A missing row
-// means the target does not exist at all.
+// lockPair は2つの Persona 行ロックを正規化した順で取得する。行が無い場合は
+// 対象がそもそも存在しないということ。
 func lockPair(ctx context.Context, q *sqlc.Queries, a, b uuid.UUID) error {
 	low, high := NormalizePair(a, b)
 	for _, id := range [2]uuid.UUID{low, high} {

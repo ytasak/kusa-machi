@@ -1,4 +1,4 @@
-/* Shared building blocks used across screens. */
+/* 画面をまたいで使う共通パーツ。 */
 
 .screen {
   display: flex;
@@ -64,7 +64,7 @@
   cursor: default;
 }
 
-/* Round action buttons on the discover screen. */
+/* 探す画面の丸いアクションボタン。 */
 .actions {
   display: flex;
   align-items: center;

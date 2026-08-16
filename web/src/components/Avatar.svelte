@@ -1,12 +1,11 @@
 <script>
   import styles from './Avatar.module.css';
 
-  // The default picture is a plain silhouette, the same for everyone, exactly
-  // like a matching app before the user uploads anything. The only per-persona
-  // touch is a soft background tint derived from the persona id, so cards stay
-  // distinguishable in a list while nobody has a picture yet.
+  // 既定の画像は全員共通のシルエット。写真を上げる前のマッチングアプリと同じ。
+  // Persona ごとに変えるのは persona id から導いた淡い背景色だけで、
+  // 誰も写真を持っていない状態でも一覧で見分けがつくようにしている。
   //
-  // `photoUrl` is the slot a future uploaded picture drops into.
+  // 写真がアップロードされると persona.photo_url がこのスロットに入る。
   let { persona, size = 56, shape = 'circle' } = $props();
 
   const HUES = [352, 12, 28, 336, 320, 4];

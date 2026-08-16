@@ -1,7 +1,7 @@
 :root {
-  /* The palette is a fixed light one, so the UA must not recolour form
-     controls for a dark preference: that turned button labels white on the
-     explicitly white button backgrounds. */
+  /* 配色は固定のライトテーマ。ダーク設定によってブラウザがフォーム部品を
+     塗り替えないようにする。これを指定しないと、白背景のボタン上で
+     ラベルが白文字になり見えなくなる。 */
   color-scheme: light;
 
   --bg: #f6f4f5;
@@ -50,7 +50,7 @@ body {
 button,
 input {
   font: inherit;
-  /* Never rely on the UA's control colours; every control states its own. */
+  /* ブラウザ既定の部品色に依存しない。各部品が自分の文字色を明示する。 */
   color: var(--text);
 }
 

@@ -1,14 +1,14 @@
-// Discover state lives in a module, not in the component, so leaving the screen
-// and coming back resumes on the same card of the same batch. A full page
-// reload loses it, which the spec accepts.
+// Discover の状態はコンポーネントではなくモジュールに置く。画面を離れて戻っても
+// 同じバッチの同じカードから再開できるようにするため。ページを完全に再読み込み
+// すると失われるが、それは仕様が許容している。
 
 import { api } from './api.js';
 import { errorMessage } from './errors.js';
 
-/** How many upcoming cards a just-passed persona stays hidden for. */
+/** Pass した直後の Persona を、この先何枚のカードのあいだ表示しないか。 */
 const PASS_COOLDOWN_CARDS = 5;
 
-/** Prefetch once this few cards are left in the current batch. */
+/** 現在のバッチの残りがこの枚数を切ったらプリフェッチする。 */
 const PREFETCH_THRESHOLD = 2;
 
 export const discover = $state({
@@ -16,7 +16,7 @@ export const discover = $state({
   loading: false,
   error: null,
   exhausted: false,
-  /** [{ id, remaining }] — local only, never sent to the server as truth. */
+  /** [{ id, remaining }] — ローカル専用。サーバに正として送ることはない。 */
   cooldown: [],
 });
 
@@ -36,14 +36,14 @@ function cooldownIds() {
   return discover.cooldown.map((entry) => entry.id);
 }
 
-/** Ages the cooldown list by one evaluated card. */
+/** 評価済みカード1枚ぶん、クールダウン一覧を進める。 */
 function tickCooldown() {
   discover.cooldown = discover.cooldown
     .map((entry) => ({ ...entry, remaining: entry.remaining - 1 }))
     .filter((entry) => entry.remaining > 0);
 }
 
-/** Drops the current card after it has been liked or passed. */
+/** Like か Pass の後に現在のカードを取り除く。 */
 export function consumeCurrent({ cooldownId = null } = {}) {
   discover.queue = discover.queue.slice(1);
   tickCooldown();
@@ -52,14 +52,14 @@ export function consumeCurrent({ cooldownId = null } = {}) {
   }
 }
 
-/** Removes a persona that the server says is no longer a valid target. */
+/** サーバが「もう対象ではない」と言った Persona を取り除く。 */
 export function dropFromQueue(personaId) {
   discover.queue = discover.queue.filter((p) => p.id !== personaId);
 }
 
 /**
- * Fetches the next batch and appends the personas that are not already queued,
- * so the user never sees a duplicate card or a visible batch boundary.
+ * 次のバッチを取得し、まだキューに無い Persona だけを追加する。
+ * これにより同じカードが二度出ることも、バッチの切れ目が見えることもない。
  */
 export async function fetchBatch() {
   if (discover.loading) return;
@@ -85,7 +85,7 @@ export async function fetchBatch() {
   }
 }
 
-/** Keeps the queue topped up without the user noticing a batch boundary. */
+/** ユーザーにバッチの切れ目を意識させずにキューを補充し続ける。 */
 export async function ensureCards() {
   if (discover.queue.length <= PREFETCH_THRESHOLD) {
     await fetchBatch();

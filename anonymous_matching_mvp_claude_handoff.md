@@ -1,300 +1,301 @@
-# Anonymous Matching MVP — Claude Code Handoff Spec
+# 匿名マッチング MVP — 実装引き継ぎ仕様書
 
-## 0. Goal
+## 0. ゴール
 
-Build a lightweight anonymous matching simulation game that can run inside the `kusa` SNS iframe, while also being usable directly from its own URL.
+`kusa` SNS の iframe 内で動き、かつ自分の URL から直接開いても使える、軽量な
+匿名マッチングシミュレーションゲームを作る。
 
-Core concept:
+中心となるコンセプト:
 
-- Every day, each participant receives one randomly generated fictional persona.
-- The persona's "status" attributes are fixed for that day.
-- The participant may edit only lightweight self-expression fields.
-- Participants browse other personas and spend a limited daily Like budget.
-- Mutual Likes create a Match.
-- All game data is ephemeral and resets daily at 00:00 JST.
-- No historical progression, ranking, chat, or persistent profile.
+- 毎日、各参加者にランダム生成された架空の Persona が1つ配られる。
+- Persona の「ステータス」属性はその日のあいだ固定される。
+- 参加者が編集できるのは、軽い自己表現の項目だけ。
+- 参加者は他人の Persona を閲覧し、1日分の限られた Like を使う。
+- 相互 Like で Match が成立する。
+- ゲームデータはすべて一時的で、毎日 00:00 JST にリセットされる。
+- 履歴・ランキング・チャット・永続プロフィールは存在しない。
 
-Primary experience:
-1. `Matching market simulation`
-2. Daily persona gacha as the entry experience
-3. Roleplay is optional and left to the user
+主な体験:
+1. `マッチング市場のシミュレーション`
+2. 入口の体験としての日替わり Persona ガチャ
+3. ロールプレイは任意で、ユーザーに委ねる
 
-This is a private hobby MVP. Prefer simple, explicit implementation over extensibility or overengineering.
+これは個人の趣味の MVP。拡張性や作り込みよりも、単純で明示的な実装を優先する。
 
 ---
 
-# 1. Tech Stack
+# 1. 技術スタック
 
-## Backend
+## バックエンド
 - Go
-- HTTP router: `chi`
+- HTTP ルータ: `chi`
 - PostgreSQL
-- SQL access: `sqlc`
-- Migration: `golang-migrate`
+- SQL アクセス: `sqlc`
+- マイグレーション: `golang-migrate`
 
-## Frontend
+## フロントエンド
 - Svelte + Vite
 - CSS Modules
 
-## Deployment
-- Single-container deployment is acceptable
-- Frontend and API must be served from the same Origin
-- App must work:
-  - inside kusa iframe
-  - when opened directly by URL
+## デプロイ
+- 1コンテナ構成でよい
+- フロントエンドと API は同一 Origin で配信する
+- 次のどちらでも動くこと:
+  - kusa の iframe 内
+  - URL を直接開いた場合
 
 ---
 
-# 2. Product Principles
+# 2. プロダクトの原則
 
-## 2.1 Daily ephemerality
+## 2.1 日次の一時性
 
-All game data is scoped to one calendar day.
+ゲームデータはすべて1つの暦日にスコープされる。
 
-At 00:00 JST:
-- today's Persona expires
-- Likes expire
-- Passes expire
-- Matches expire
-- participant-entered name/hobby/bio expire
-- previous-day game data becomes immediately inaccessible
-- old data is physically deleted asynchronously
+00:00 JST に:
+- その日の Persona が失効する
+- Like が失効する
+- Pass が失効する
+- Match が失効する
+- 参加者が入力した 名前 / 趣味 / ひとこと が失効する
+- 前日のゲームデータは即座にアクセス不能になる
+- 古いデータは非同期に物理削除される
 
-No:
-- history
-- cumulative stats
-- streaks
-- rankings
-- previous personas
-- previous matches
-- historical Like counts
+存在しないもの:
+- 履歴
+- 累積統計
+- 連続記録
+- ランキング
+- 過去の Persona
+- 過去の Match
+- 過去の Like 数
 
-## 2.2 No account system
+## 2.2 アカウントシステムなし
 
-kusa does not provide a user identity to the iframe app.
+kusa は iframe 内のアプリにユーザー identity を提供しない。
 
-Identify the browser with an anonymous Cookie.
+ブラウザは匿名 Cookie で識別する。
 
-Cookie deletion may allow a fresh participant identity. This is acceptable for MVP; no anti-reroll protection is required.
+Cookie を消せば新しい参加者 identity を得られてしまうが、MVP ではそれを許容する。
+再抽選対策は不要。
 
 ---
 
-# 3. User Identity Model
+# 3. ユーザー identity のモデル
 
-Three concepts must remain separate.
+3つの概念を明確に分離し続けること。
 
 ## `cookie_token`
-Browser identifier.
+ブラウザの識別子。
 
-- opaque random ID
-- UUID v4 or equivalent
-- stored only in Cookie
-- approximately 30-day expiry
-- no game state stored in Cookie
+- 不透明なランダム ID
+- UUID v4 かそれ相当
+- Cookie にのみ保存する
+- 有効期限は約30日
+- ゲームの状態は Cookie に保存しない
 
-Cookie attributes:
+Cookie の属性:
 - `HttpOnly`
 - `Secure`
 - `SameSite=None`
 - `Path=/`
-- no explicit `Domain`
+- `Domain` は明示しない
 
 ## `Participant`
-Technical participant for one game day.
+1ゲーム日ぶんの技術的な参加者。
 
-Relationship:
+関係:
 
 ```text
 cookie_token -> Participant -> Persona
 ```
 
-One Participant per `cookie_token + game_date`.
+`cookie_token + game_date` につき Participant は1つ。
 
-Participant is not itself visible in the game.
+Participant 自体はゲーム内には現れない。
 
 ## `Persona`
-The fictional person used in the matching market.
+マッチング市場で使われる架空の人物。
 
-All game interactions use `persona_id`, not Participant or Cookie identity.
+ゲーム内の操作はすべて `persona_id` を使い、Participant や Cookie の identity は使わない。
 
-Like / Pass / Match actors are Personas.
+Like / Pass / Match の主体は Persona。
 
 ---
 
-# 4. Daily Lifecycle
+# 4. 1日のライフサイクル
 
-Timezone: **Asia/Tokyo**
+タイムゾーン: **Asia/Tokyo**
 
-## First access of the day
+## その日の初回アクセス
 
-1. Read or issue anonymous Cookie.
-2. Ensure today's Participant exists.
-3. If today's Persona does not exist:
-   - show "新しい人生を始める"
-4. When pressed:
-   - server generates Persona once
-   - save immediately
-   - Persona becomes publicly discoverable immediately
-5. Show a short 1–2 second generation animation.
-6. Reveal all generated attributes at once.
+1. 匿名 Cookie を読むか発行する。
+2. その日の Participant の存在を保証する。
+3. その日の Persona が存在しない場合:
+   - 「新しい人生を始める」を表示する
+4. 押されたら:
+   - サーバが Persona を一度だけ生成する
+   - 即座に保存する
+   - Persona は即座に公開され、市場に出る
+5. 1〜2秒の短い生成アニメーションを見せる。
+6. 生成された属性を一度にすべて開示する。
 
-Persona generation API must be idempotent:
-- no Persona today → generate
-- already generated → return existing Persona
-- never reroll during the same day
+Persona 生成 API は冪等であること:
+- その日の Persona が無い → 生成する
+- すでに生成済み → 既存の Persona を返す
+- 同じ日のうちに振り直しは絶対にしない
 
-## End of day
+## 1日の終わり
 
-Home shows a permanent countdown such as:
+常時、次のようなカウントダウンを表示する:
 
 ```text
 今日の人生 残り 03:42:18
 ```
 
-At 23:55, if the app is open, show an in-app modal:
+23:55 に、アプリが開かれていれば、アプリ内モーダルを表示する:
 
 ```text
 今日の人生はあと5分です
 ```
 
-At 00:00:
-- current day is immediately invalid
-- open clients show:
+00:00 に:
+- その日は即座に無効になる
+- 開いているクライアントには次を表示する:
   - `今日の人生が終了しました`
-- user must press `新しい人生を始める` to create the next day's Persona
+- 翌日の Persona を作るには、ユーザーが `新しい人生を始める` を押す必要がある
 
-Do not depend on a 00:00 deletion job for correctness.
-All queries must scope data by `game_date = today JST`.
-
----
-
-# 5. Persona Model
-
-## 5.1 System-generated immutable attributes (A)
-
-Generated once per day and immutable:
-
-- age
-- gender
-- height
-- education
-- occupation
-- annual income
-
-## 5.2 User-editable attributes (B)
-
-Editable any number of times during the day:
-
-- name
-- hobby
-- bio / one-line message
-- profile picture （2026-08-16 追加。§23 の Non-Goal から外した）
-
-Limits:
-- name: max 20 chars
-- hobby: max 30 chars
-- bio: max 60 chars
-
-Rules:
-- single-line only
-- no newline
-- trim leading/trailing whitespace
-- whitespace-only becomes unset/null
-- plain text only
-- no Markdown
-- no HTML rendering
-- escape output
-- explicit URLs (`http://`, `https://`) are prohibited
-- do not attempt to detect phone numbers, email addresses, SNS IDs, or all possible external-contact variants
-- no NG-word filter in MVP
-
-If name/hobby/bio is unset, omit the field entirely from the rendered Persona card.
-
-## 5.3 Profile picture
-
-Optional. When unset, the card shows a plain default silhouette.
-
-Client:
-- center-crop to a square and scale to at most 1024px before uploading
-- this only keeps uploads small; it is never a security control
-
-Server (the only thing that is trusted):
-- accept JPEG and PNG, reject everything else
-- reject bodies over 8MB and images over 40 megapixels, the pixel check running
-  on the header before the image is decoded
-- always decode and re-encode as JPEG. This is what strips EXIF — an anonymous
-  app must never publish someone's GPS coordinates — and discards anything
-  smuggled alongside the pixels
-- store the long edge at 1024px
-
-Storage and lifetime:
-- files under `PHOTO_DIR`, one directory per `game_date`
-- the daily cleanup removes directories older than today, so pictures expire
-  with the rest of the day's data
-- pictures are served with `Content-Type: image/jpeg` and
-  `X-Content-Type-Options: nosniff`, and only for today's personas
-- a participant may delete their own picture at any time
-
-Known limitation, accepted for this MVP: there is no reporting flow and no
-moderation, so an uploaded picture is only removed by its owner or by the
-daily reset.
+正しさを 00:00 の削除ジョブに依存させないこと。
+すべてのクエリが `game_date = 当日(JST)` でデータをスコープすること。
 
 ---
 
-# 6. Persona Card Display Order
+# 5. Persona のモデル
 
-0. profile picture (default silhouette when unset)
-1. name (only when set)
-2. age + gender
-3. height
-4. occupation
-5. annual income
-6. education
-7. hobby (only when set)
-8. bio (only when set)
+## 5.1 システム生成の不変属性（A）
 
-Public Persona cards must not show:
-- Like count
-- Match count
-- popularity rank
-- rarity
-- overall score
-- exposure count
+1日に一度だけ生成され、以後不変:
+
+- 年齢
+- 性別
+- 身長
+- 学歴
+- 職業
+- 年収
+
+## 5.2 ユーザーが編集できる属性（B）
+
+その日のあいだ何度でも編集できる:
+
+- 名前
+- 趣味
+- ひとこと
+- プロフィール写真 （2026-08-16 追加。§23 の Non-Goal から外した）
+
+制限:
+- 名前: 最大20文字
+- 趣味: 最大30文字
+- ひとこと: 最大60文字
+
+ルール:
+- 単一行のみ
+- 改行は不可
+- 前後の空白は除去する
+- 空白のみの場合は未設定（null）にする
+- プレーンテキストのみ
+- Markdown は解釈しない
+- HTML として描画しない
+- 出力時はエスケープする
+- 明示的な URL（`http://`、`https://`）は禁止
+- 電話番号・メールアドレス・SNS ID など、外部連絡先のあらゆる表記を検出しようとはしない
+- MVP では NG ワードフィルタを持たない
+
+名前 / 趣味 / ひとこと が未設定の場合、その項目は Persona カードから丸ごと省く。
+
+## 5.3 プロフィール写真
+
+任意。未設定のときはシンプルな既定のシルエットを表示する。
+
+クライアント側:
+- アップロード前に中央で正方形に切り抜き、長辺1024px以下に縮小する
+- これはアップロードを小さくするためだけのもので、セキュリティ制御ではない
+
+サーバ側（信用してよい唯一の場所）:
+- JPEG と PNG のみ受理し、それ以外は拒否する
+- 8MB を超えるボディと4000万画素を超える画像を拒否する。画素数チェックは
+  画像をデコードする前にヘッダに対して行う
+- 必ずデコードして JPEG として再エンコードする。これにより EXIF が消える
+  （匿名アプリが誰かの GPS 座標を公開してはならない）とともに、画素に紛れ込ませた
+  ものも捨てられる
+- 長辺1024pxで保存する
+
+保存と寿命:
+- `PHOTO_DIR` 配下のファイルとして保存し、`game_date` ごとにディレクトリを分ける
+- 日次クリーンアップが今日より古いディレクトリを削除するため、写真もその日の
+  他のデータと一緒に失効する
+- 配信時は `Content-Type: image/jpeg` と `X-Content-Type-Options: nosniff` を付け、
+  当日の Persona のものだけを配信する
+- 参加者はいつでも自分の写真を削除できる
+
+この MVP で受け入れている既知の制約: 通報の導線もモデレーションも無いため、
+アップロードされた写真は本人が削除するか日次リセットが来るまで残る。
+
+---
+
+# 6. Persona カードの表示順
+
+0. プロフィール写真（未設定なら既定のシルエット）
+1. 名前（設定されている場合のみ）
+2. 年齢 + 性別
+3. 身長
+4. 職業
+5. 年収
+6. 学歴
+7. 趣味（設定されている場合のみ）
+8. ひとこと（設定されている場合のみ）
+
+公開 Persona カードに表示してはならないもの:
+- Like 数
+- Match 数
+- 人気ランク
+- レア度
+- 総合スコア
+- 露出回数
 - Participant ID
-- Cookie identifier
+- Cookie 識別子
 
-Use one shared Persona card UI component across:
-- Discover
-- Received Likes
-- Sent Likes
-- Matches
+Persona カードの UI コンポーネントは次の画面で共通のものを使う:
+- 探す
+- Likeされた
+- 送信済みLike
+- Match
 
-Only actions/badges differ by screen.
+画面ごとに変えてよいのは、アクションとバッジだけ。
 
 ---
 
-# 7. Persona Generation
+# 7. Persona の生成
 
-Generation order:
+生成順:
 
 ```text
-age
- -> gender
- -> height
- -> education
- -> occupation
- -> annual_income
+年齢
+ -> 性別
+ -> 身長
+ -> 学歴
+ -> 職業
+ -> 年収
 ```
 
-The goal is **minimum plausibility constraints**, not realistic demographic simulation.
+目指すのは**最低限の妥当性の制約**であって、現実的な人口統計のシミュレーションではない。
 
-## 7.1 Age
+## 7.1 年齢
 
-Range: 20–50
+範囲: 20〜50
 
-Weighted age bands:
+重み付きの年齢帯:
 
-| Range | Weight |
+| 範囲 | 重み |
 |---|---:|
 | 20–24 | 20% |
 | 25–29 | 25% |
@@ -303,32 +304,32 @@ Weighted age bands:
 | 40–44 | 10% |
 | 45–50 | 10% |
 
-Process:
-1. choose band by weight
-2. choose age uniformly inside the band
+手順:
+1. 重みに従って帯を選ぶ
+2. その帯の中から一様に年齢を選ぶ
 
-## 7.2 Gender
+## 7.2 性別
 
 - male: 50%
 - female: 50%
 
-No gender filtering in MVP.
+MVP では性別によるフィルタリングを行わない。
 
-## 7.3 Height
+## 7.3 身長
 
-Uniform random:
+一様乱数:
 
 ```text
 140–200 cm
 ```
 
-1 cm increments.
+1cm 刻み。
 
-No gender adjustment.
+性別による補正はしない。
 
-## 7.4 Education
+## 7.4 学歴
 
-| Education | Weight |
+| 学歴 | 重み |
 |---|---:|
 | 中卒 | 5% |
 | 高卒 | 20% |
@@ -338,21 +339,21 @@ No gender adjustment.
 | 大学院卒 | 10% |
 | ホイ卒 | 5% |
 
-Age restrictions:
-- 大卒: age >= 22
-- 大学院卒: age >= 24
-- all others: age >= 20
+年齢による制約:
+- 大卒: 22歳以上
+- 大学院卒: 24歳以上
+- その他: 20歳以上
 
-Exclude invalid candidates and renormalize weights.
+不適格な候補は除外し、重みを再正規化する。
 
-### Special rule: ホイ卒
-`ホイ卒` is an intentional kusa in-joke / rare meme education value.
+### 特例: ホイ卒
+`ホイ卒` は意図的な kusa の内輪ネタであり、レアなミーム学歴。
 
-If education is `ホイ卒`, occupation restrictions are ignored.
+学歴が `ホイ卒` の場合、職業の制約はすべて無視する。
 
-## 7.5 Occupation
+## 7.5 職業
 
-| Occupation | Weight |
+| 職業 | 重み |
 |---|---:|
 | 公務員 | 7% |
 | 医師 | 2% |
@@ -370,31 +371,31 @@ If education is `ホイ卒`, occupation restrictions are ignored.
 | フリーター | 5% |
 | 無職 | 4% |
 
-Restrictions:
+制約:
 - 医師:
-  - age >= 24
-  - education in {大卒, 大学院卒}
+  - 24歳以上
+  - 学歴が 大卒 か 大学院卒
 - 教員:
-  - age >= 22
-  - education in {大卒, 大学院卒}
+  - 22歳以上
+  - 学歴が 大卒 か 大学院卒
 - 経営者:
-  - age >= 25
+  - 25歳以上
 - 看護師:
-  - no additional restriction
-- others:
-  - no additional restriction
-- if education == `ホイ卒`:
-  - ignore all occupation restrictions
+  - 追加の制約なし
+- その他:
+  - 追加の制約なし
+- 学歴が `ホイ卒` の場合:
+  - 職業の制約をすべて無視する
 
-Exclude invalid candidates and renormalize.
+不適格な候補は除外し、重みを再正規化する。
 
-## 7.6 Annual Income
+## 7.6 年収
 
-Store unit: **万円**
+保存単位: **万円**
 
-All values must be in 10万円 increments.
+値はすべて10万円刻みであること。
 
-| Occupation | Range (万円) |
+| 職業 | レンジ（万円） |
 |---|---:|
 | 公務員 | 300–750 |
 | 医師 | 700–1800 |
@@ -412,323 +413,322 @@ All values must be in 10万円 increments.
 | フリーター | 100–300 |
 | 無職 | 0–100 |
 
-Age adjustment is intentionally weak:
-- 20s: slightly bias lower-to-middle
-- 30s: roughly flat
-- 40–50: slightly bias middle-to-upper
+年齢による補正は意図的に弱くする:
+- 20代: やや低め〜中程度に寄せる
+- 30代: ほぼ平坦
+- 40〜50代: やや中程度〜高めに寄せる
 
-Extreme combinations must still remain possible.
+極端な組み合わせも起こりうる状態を保つこと。
 
-Do not overengineer this. A simple skewed RNG is sufficient.
+ここは作り込まない。単純に歪ませた乱数で十分。
 
-No rarity or "good/bad life" score is ever calculated.
+レア度や「良い人生／悪い人生」のスコアは一切計算しない。
 
 ---
 
-# 8. Matching Rules
+# 8. マッチングのルール
 
-## Daily Like budget
+## 1日の Like 予算
 
-Each Persona has exactly:
+各 Persona がその日に持つ Like はちょうど:
 
 ```text
-10 Likes / day
+10 Like / 日
 ```
 
-Rules:
-- Pass is unlimited
-- Like is consumed immediately
-- Like cannot be revoked
-- unused Likes do not carry over
-- Like budget resets with the new day
-- Like limit must be enforced server-side in a transaction
-- duplicate request must not double-consume Like
-- same target may only be Liked once per day
-- self-Like is forbidden
+ルール:
+- Pass は無制限
+- Like は即座に消費される
+- Like は取り消せない
+- 使わなかった Like は繰り越されない
+- Like 予算は新しい日にリセットされる
+- Like の上限はサーバ側のトランザクションで強制する
+- 同じリクエストが重複しても Like を二重に消費しない
+- 同じ相手に Like できるのは1日1回まで
+- 自分への Like は禁止
 
-Received-Like reply consumes the same shared 10-Like budget.
+Likeされた相手へのお返しも、同じ10 Likeの予算を共有する。
 
-There is no separate reply quota.
+返信用の別枠は存在しない。
 
 ## Match
 
-Mutual Like creates one Match.
+相互 Like で Match が1つ成立する。
 
 Match:
-- is unordered
-- one Match per Persona pair
-- must be idempotent
-- stored explicitly rather than calculated every time
+- 順序を持たない
+- Persona のペアにつき1つ
+- 冪等であること
+- 都度計算するのではなく明示的に保存する
 
-On a successful mutual Like:
-- Like API returns `matched = true`
-- frontend shows Match animation
-- Match appears in Match list
+相互 Like が成立したとき:
+- Like API は `matched = true` を返す
+- フロントエンドは Match アニメーションを表示する
+- Match が Match 一覧に現れる
 
-No chat or DM in MVP.
-
----
-
-# 9. Pass Rules
-
-Pass is not permanent on first use.
-
-A previously Passed Persona may be shown again.
-
-Rules:
-- maintain `pass_count` per directed Persona pair
-- 1st Pass → may return later
-- 2nd Pass → may return later
-- 3rd Pass → excluded for the rest of the day
-- self-Pass forbidden
-- once target is Liked/Matched, no more Pass actions
-
-Cooldown:
-- a just-Passed Persona should not appear again within the next 5 displayed/evaluated cards
-- for MVP, this 5-card cooldown can be maintained in frontend session state
-- page reload may lose this cooldown; acceptable
-- `pass_count = 3` is server-side and persistent for the day
+MVP にチャットや DM は無い。
 
 ---
 
-# 10. Discover / Market Exposure
+# 9. Pass のルール
 
-Discover UI:
-- one Persona card at a time
-- Like button
-- Pass button
-- no swipe gestures in MVP
-- no confirmation dialog
-- Pass transitions quickly
-- Like gets a short `LIKE` feedback animation
-- Match transitions directly to Match animation
+Pass は初回で永久除外にはならない。
 
-Always show:
-- remaining Likes `N / 10`
-- small badge for number of received Likes
+一度 Pass した Persona がまた表示されることがある。
 
-Do not show Match count on Discover screen.
+ルール:
+- Persona ペアの方向ごとに `pass_count` を保持する
+- 1回目の Pass → あとでまた出てよい
+- 2回目の Pass → あとでまた出てよい
+- 3回目の Pass → その日はもう出さない
+- 自分への Pass は禁止
+- 相手が Like 済み / Match 済みになったら、もう Pass の操作はできない
 
-## Candidate selection
+クールダウン:
+- Pass した直後の Persona は、次に表示・評価される5枚のあいだは再表示しない
+- MVP ではこの5枚のクールダウンをフロントエンドのセッション状態で保持してよい
+- ページを再読み込みするとクールダウンが失われるが、それは許容する
+- `pass_count = 3` はサーバ側で保持し、その日のあいだ永続する
 
-`GET /api/discover` returns at most 5 Personas at a time.
+---
 
-Selection constraints:
-- not self
-- current `game_date`
-- Persona exists and is active
-- not already Liked by requester
-- not already Matched
+# 10. 探す / 市場での露出
+
+探す画面の UI:
+- 一度に1枚の Persona カード
+- Like ボタン
+- Pass ボタン
+- MVP にスワイプ操作は無い
+- 確認ダイアログは無い
+- Pass は素早く次へ遷移する
+- Like には短い `LIKE` のフィードバックアニメーションを付ける
+- Match したときは直接 Match アニメーションへ遷移する
+
+常に表示するもの:
+- 残り Like `N / 10`
+- Likeされた件数の小さなバッジ
+
+探す画面に Match 数は表示しない。
+
+## 候補の選び方
+
+`GET /api/discover` は一度に最大5件の Persona を返す。
+
+選択の条件:
+- 自分ではない
+- 当日の `game_date`
+- Persona が存在し有効である
+- リクエスト元がまだ Like していない
+- まだ Match していない
 - `pass_count < 3`
-- honor frontend-provided cooldown exclusion IDs when present
-- no duplicate Persona within one response
-- previous batch overlap is allowed
+- フロントエンドから除外 ID が渡された場合はそれを尊重する
+- 1回のレスポンス内に同じ Persona を含めない
+- 前回のバッチと重複するのは構わない
 
-Priority:
-1. lower `exposure_count`
-2. random order among similarly exposed candidates
+優先度:
+1. `exposure_count` が少ない順
+2. 同程度の露出の中ではランダム順
 
-## Exposure counting
+## 露出のカウント
 
-Do **not** increment exposure when Discover API returns the batch.
+探す API がバッチを返した時点では露出を加算しない。
 
-Increment:
+次のいずれかをユーザーが確定したときにのみ:
 
 ```text
 exposure_count += 1
 ```
 
-only after user confirms:
 - Like
-- or Pass
+- または Pass
 
-Thus, exposure represents an actually evaluated profile.
+つまり露出は「実際に評価されたプロフィール」を表す。
 
-The frontend should prefetch the next batch automatically when current batch is nearly exhausted / exhausted.
+フロントエンドは現在のバッチが尽きかけたら自動的に次のバッチを先読みする。
 
-Batch boundary should not be visible to the user.
+バッチの切れ目がユーザーから見えてはならない。
 
 ---
 
-# 11. Received Likes
+# 11. Likeされた
 
-Screen:
-- list all Personas who Liked the current Persona
-- newest first
-- show full public Persona card
-- no Like timestamp
-- no sender Like-budget information
+画面:
+- 現在の Persona に Like した Persona を一覧表示する
+- 新しい順
+- 公開 Persona カードをそのまま表示する
+- Like の時刻は表示しない
+- 送信者の Like 予算の情報は表示しない
 
-User may Like back.
+ユーザーは Like を返せる。
 
-Like-back:
-- consumes one of the same daily 10 Likes
-- mutual Like creates Match
+Like を返す操作:
+- 同じ1日10 Likeの予算を消費する
+- 相互 Like になれば Match が成立する
 
-Home:
-- show received Like count
-- if unseen Likes exist, prominently show:
+マイページ:
+- Likeされた件数を表示する
+- 未読の Like があれば目立つ形で表示する:
   - `新しいLikeがあります`
-- badge clears when Received Likes screen is opened
+- Likeされた画面を開いたらバッジを消す
 
-Real-time transport is not required.
-State refreshes on navigation / request.
-
----
-
-# 12. Sent Likes
-
-Screen:
-- list all Personas current Persona Liked
-- newest first
-- Like cannot be revoked
-- matched targets remain in the list
-- matched targets receive a `MATCH` badge
-
-This screen acts as the day's Like-allocation history.
-
-All data disappears at 00:00.
+リアルタイム通信は不要。
+状態は画面遷移やリクエストのタイミングで更新される。
 
 ---
 
-# 13. Matches
+# 12. 送信済みLike
 
-Screen:
-- list matched counterpart Personas
-- newest first
-- show only counterpart Persona card
-- do not repeat user's own Persona
-- read-only
+画面:
+- 現在の Persona が Like した Persona を一覧表示する
+- 新しい順
+- Like は取り消せない
+- Match した相手も一覧に残る
+- Match した相手には `MATCH` バッジを付ける
 
-Home:
-- show today's Match count
-- unseen Match causes prominent:
+この画面はその日の Like 配分の履歴として機能する。
+
+データはすべて 00:00 に消える。
+
+---
+
+# 13. Match
+
+画面:
+- Match した相手の Persona を一覧表示する
+- 新しい順
+- 相手の Persona カードのみ表示する
+- 自分の Persona は繰り返し表示しない
+- 読み取り専用
+
+マイページ:
+- その日の Match 数を表示する
+- 未読の Match があれば目立つ形で表示する:
   - `新しいMatchがあります！`
-- badge clears when Match screen is opened
+- Match 画面を開いたらバッジを消す
 
-Match creation animation:
-- show own Persona and matched Persona together
-- short `MATCH!`
-- copy may include:
+Match 成立時のアニメーション:
+- 自分の Persona と相手の Persona を並べて表示する
+- 短く `MATCH!` を出す
+- コピーには次を含めてよい:
   - `今日の人生でマッチしました`
 
-No chat / DM.
+チャットや DM は無い。
 
 ---
 
-# 14. Navigation and マイページ
+# 14. ナビゲーションとマイページ
 
-> **Revised.** This section originally read "Home is the navigation hub. No
-> persistent bottom tab navigation." That was reversed on 2026-08-16: a
-> persistent bottom tab bar is easier to reach one-handed on a phone, which is
-> the only form factor that matters here. The Home screen is replaced by
-> マイページ, and the countdown moves to a persistent header so it stays visible
-> on every screen.
+> **改訂。** この節はもともと「ホームがナビゲーションの起点。常時表示の
+> ボトムタブは持たない」だった。2026-08-16 にこれを取り消した。ここで唯一
+> 想定している端末であるスマートフォンでは、常時表示のタブバーのほうが
+> 片手で届きやすいため。ホーム画面はマイページに置き換わり、カウントダウンは
+> 常時表示のヘッダーへ移してすべての画面で見えるようにする。
 
-## Persistent chrome
+## 常時表示の要素
 
-A header is shown on every screen once today's Persona exists:
+その日の Persona が存在するようになると、すべての画面でヘッダーを表示する:
 
-1. daily countdown
-2. remaining Likes `N / 10`
+1. 日次カウントダウン
+2. 残り Like `N / 10`
 
-A bottom tab bar is shown on every screen once today's Persona exists.
-Tabs, in navigation priority order:
+その日の Persona が存在するようになると、すべての画面でボトムタブバーを表示する。
+タブはナビゲーションの優先順に:
 
 1. 探す
 2. Likeされた
 3. Match
 4. マイページ
 
-Unseen Likes and unseen Matches put a dot on their tab.
+未読の Like と未読の Match は、それぞれのタブにドットを出す。
 
-Before today's Persona exists, the "新しい人生を始める" screen takes over the
-whole app: no header, no tab bar.
+その日の Persona が存在しないあいだは「新しい人生を始める」画面がアプリ全体を
+占有する。ヘッダーもタブバーも出さない。
 
 ## マイページ
 
-Primary information:
-1. today's own Persona card
-2. remaining Likes `N / 10`
-3. received Like count
-4. today's Match count
+主要な情報:
+1. その日の自分の Persona カード
+2. 残り Like `N / 10`
+3. Likeされた件数
+4. その日の Match 数
 
-Pushed screens, reached from マイページ and providing a route back to it:
+マイページから遷移し、マイページへ戻る導線を持つ画面:
 
 - 送信済みLike
 - プロフィール編集
 
 ---
 
-# 15. Profile Edit Screen
+# 15. プロフィール編集画面
 
-Top:
-- show immutable A attributes read-only
+上部:
+- 不変の A属性を読み取り専用で表示する
 
-Editable below:
-- name
-- hobby
-- bio
+その下で編集できるもの:
+- 名前
+- 趣味
+- ひとこと
+- プロフィール写真
 
-All three are optional.
-Changes immediately affect public Persona profile.
+4つとも任意。
+変更は公開 Persona プロフィールに即座に反映される。
 
-No "publish" state.
-Persona is publicly visible immediately after generation, even if all B fields are empty.
-
----
-
-# 16. Main Screens
-
-MVP has exactly these main screens:
-
-1. Discover （tab 探す）
-2. Received Likes （tab Likeされた）
-3. Matches （tab Match）
-4. マイページ （tab; replaces the original Home screen — see §14）
-5. Sent Likes （pushed from マイページ）
-6. Profile Edit （pushed from マイページ）
-
-Supporting UI / modal states:
-- Start New Life
-- Persona generation animation
-- Match animation
-- 23:55 five-minute warning
-- 00:00 Life Ended
+「公開する」という状態は無い。
+B属性がすべて空でも、Persona は生成された時点で公開される。
 
 ---
 
-# 17. Frontend State Behavior
+# 16. 主要な画面
 
-Discover fetches batches of 5.
+MVP の主要画面はちょうど次のとおり:
 
-Within the current page session:
-- retain current Discover card
-- retain fetched batch
-- retain batch position
-- retain local 5-card Pass cooldown exclusion list
+1. 探す （タブ）
+2. Likeされた （タブ）
+3. Match （タブ）
+4. マイページ （タブ。元のホーム画面を置き換える — §14 を参照）
+5. 送信済みLike （マイページから遷移）
+6. プロフィール編集 （マイページから遷移）
 
-If user moves Discover → Received Likes → Discover:
-- resume from the previous card/batch
+補助的な UI / モーダルの状態:
+- 新しい人生を始める
+- Persona 生成アニメーション
+- Match アニメーション
+- 23:55 の5分前警告
+- 00:00 の終了
 
-On full reload/browser restart:
-- Discover in-memory state may be lost
-- refetch
-- unacted Persona may reappear
-- this is acceptable
+---
 
-Server state remains authoritative for:
-- Likes
-- Pass counts
-- Matches
+# 17. フロントエンドの状態の扱い
+
+探す画面は5件ずつバッチで取得する。
+
+同一ページセッションのあいだ保持するもの:
+- 現在の探すカード
+- 取得済みのバッチ
+- バッチ内の位置
+- ローカルな5枚ぶんの Pass クールダウン除外リスト
+
+探す → Likeされた → 探す と移動した場合:
+- 直前のカード / バッチから再開する
+
+ページを完全に再読み込みした場合やブラウザを再起動した場合:
+- 探す画面のメモリ上の状態は失われてよい
+- 取り直す
+- まだ操作していない Persona が再登場してよい
+- これは許容する
+
+次のものについてはサーバの状態が正:
+- Like
+- Pass 回数
+- Match
 - Persona
-- Like budget
+- Like 予算
 
 ---
 
-# 18. Database Schema
+# 18. データベーススキーマ
 
-Use UUID primary keys.
+主キーは UUID を使う。
 
 ## participants
 
@@ -771,9 +771,12 @@ CREATE TABLE personas (
 );
 ```
 
-Suggested CHECK constraints:
-- age between 20 and 50
-- height_cm between 140 and 200
+プロフィール写真の追加にあわせて `photo_updated_at TIMESTAMPTZ NULL` を後から
+追加した（§5.3 を参照）。写真の実体は DB ではなくファイルとして保存する。
+
+推奨する CHECK 制約:
+- age は 20 以上 50 以下
+- height_cm は 140 以上 200 以下
 - annual_income >= 0
 - exposure_count >= 0
 
@@ -840,107 +843,112 @@ CREATE TABLE matches (
 );
 ```
 
-Application must normalize the Persona pair before insert.
+アプリケーション側が INSERT 前に Persona のペアを正規化すること。
 
 ---
 
-# 19. Daily Physical Deletion
+# 19. 日次の物理削除
 
-Correctness uses `game_date`, not deletion timing.
+正しさは削除のタイミングではなく `game_date` で担保する。
 
-Deletion job:
-- periodically delete `participants WHERE game_date < today_jst`
-- `ON DELETE CASCADE` removes:
+削除ジョブ:
+- 定期的に `participants WHERE game_date < 当日(JST)` を削除する
+- `ON DELETE CASCADE` により次も削除される:
   - personas
   - likes
   - passes
   - matches
+- プロフィール写真は `ON DELETE CASCADE` の対象外なので、`game_date` ごとの
+  ディレクトリを削除して掃除する（§5.3 を参照）
 
-Job must be idempotent and retryable.
+ジョブは冪等でリトライ可能であること。
 
-No persistent historical archive.
+履歴の永続保管はしない。
 
 ---
 
-# 20. CSRF / Web Security
+# 20. CSRF / Web セキュリティ
 
-Because identity is Cookie-based and the app can be embedded:
+identity が Cookie ベースで、かつ埋め込まれうるアプリなので:
 
 ## CSRF
 
-Participant stores one daily CSRF token.
+Participant は日次の CSRF トークンを1つ保持する。
 
-Generation:
-- cryptographically secure random bytes
-- ~32 bytes
-- Base64URL / equivalent opaque token
+生成:
+- 暗号論的に安全な乱数
+- 32バイト程度
+- Base64URL 相当の不透明なトークン
 
-Lifecycle:
-- generated for today's Participant
-- valid only for the game day
-- returned during initialization/home
-- frontend stores in memory
-- mutating requests send header such as:
+ライフサイクル:
+- その日の Participant に対して生成する
+- 有効なのはそのゲーム日のあいだだけ
+- 初期化 / ホームの取得時に返す
+- フロントエンドはメモリ上に保持する
+- 更新系リクエストは次のようなヘッダで送る:
 
 ```text
 X-CSRF-Token: ...
 ```
 
-Require CSRF token for:
-- Persona generation
-- profile update
+CSRF トークンを必須とするもの:
+- Persona 生成
+- プロフィール更新
+- プロフィール写真のアップロードと削除
 - Like
 - Pass
-- any future mutation endpoint
+- 今後追加されるあらゆる更新系エンドポイント
 
-GET endpoints must not mutate game state except the explicitly accepted "last seen" behavior discussed below.
+GET のエンドポイントはゲーム状態を変更しないこと。ただし後述の「最終閲覧時刻」の
+更新だけは明示的に許容する。
 
 ## XSS
 
-All B fields:
-- plain text
-- escaped when rendered
-- no raw HTML insertion
-- no Markdown parsing
+B属性はすべて:
+- プレーンテキスト
+- 描画時にエスケープする
+- 生の HTML を挿入しない
+- Markdown を解釈しない
 
-## Server-side validation
+## サーバ側の検証
 
-Never trust frontend for:
-- Like count
-- Like budget
-- Persona attributes
-- Match creation
-- Pass count
-- character limits
-- newline restriction
-- explicit URL restriction
+次についてフロントエンドを信用しないこと:
+- Like 数
+- Like 予算
+- Persona の属性
+- Match の生成
+- Pass 回数
+- 文字数制限
+- 改行の禁止
+- 明示的な URL の禁止
+- アップロードされた画像の形式・寸法・容量
 
 ---
 
 # 21. API
 
-Base path:
+ベースパス:
 
 ```text
 /api
 ```
 
-Success payloads do not need a universal wrapper.
+成功時のペイロードに共通のラッパーは不要。
 
-Errors use:
+エラーは次の形式:
 
 ```json
 {
   "error": {
     "code": "LikeLimitExceeded",
-    "message": "like limit exceeded"
+    "message": "今日のLikeを使い切りました"
   }
 }
 ```
 
-Frontend behavior should branch on `error.code`.
+フロントエンドは `error.code` で分岐すること。
 
-## Domain error codes
+## ドメインのエラーコード
 
 - `PersonaNotGenerated`
 - `LikeLimitExceeded`
@@ -951,9 +959,9 @@ Frontend behavior should branch on `error.code`.
 - `DayExpired`
 - `InvalidProfileInput`
 
-Suggested HTTP mapping:
+HTTP との対応:
 
-| Error | HTTP |
+| エラー | HTTP |
 |---|---:|
 | InvalidProfileInput | 400 |
 | PersonaNotGenerated | 404 |
@@ -968,11 +976,11 @@ Suggested HTTP mapping:
 
 ## GET `/api/home`
 
-Responsibilities:
-- ensure today's Participant exists
-- return current app state
+責務:
+- その日の Participant の存在を保証する
+- アプリの現在の状態を返す
 
-Example:
+例:
 
 ```json
 {
@@ -989,35 +997,35 @@ Example:
 }
 ```
 
-If Persona not generated:
+Persona が未生成の場合:
 - `persona_generated=false`
-- Persona may be null
+- `persona` は null でよい
 
 ---
 
 ## POST `/api/persona`
 
-CSRF required.
+CSRF 必須。
 
-Idempotent:
-- no Persona today → generate and persist
-- exists → return existing Persona
+冪等:
+- その日の Persona が無い → 生成して保存する
+- ある → 既存の Persona を返す
 
-Never reroll.
+振り直しは絶対にしない。
 
 ---
 
 ## GET `/api/persona/me`
 
-Return own Persona including A + B attributes.
+自分の Persona を A属性 + B属性 込みで返す。
 
 ---
 
 ## PATCH `/api/persona/profile`
 
-CSRF required.
+CSRF 必須。
 
-Request:
+リクエスト:
 
 ```json
 {
@@ -1027,33 +1035,57 @@ Request:
 }
 ```
 
-Only B attributes accepted.
+受け付けるのは B属性のみ。
 
-Do not silently accept A fields.
+A属性を黙って受け入れないこと。
+
+---
+
+## POST `/api/persona/photo`
+
+CSRF 必須。
+
+ボディは生の画像。サーバが必ずデコードして再エンコードする（§5.3 を参照）。
+更新後の Persona カードを返す。
+
+---
+
+## DELETE `/api/persona/photo`
+
+CSRF 必須。
+
+プロフィール写真を削除し、更新後の Persona カードを返す。
+
+---
+
+## GET `/api/personas/{persona_id}/photo`
+
+当日の Persona の写真を配信する。写真が無い場合や当日の Persona でない場合は
+`TargetPersonaUnavailable` を返す。
 
 ---
 
 ## GET `/api/discover`
 
-Return max 5 public Persona cards.
+公開 Persona カードを最大5件返す。
 
-Optional query:
+任意のクエリ:
 
 ```text
 ?exclude=id1,id2,id3
 ```
 
-The frontend may send current cooldown exclusions.
+フロントエンドは現在のクールダウン除外 ID を送ってよい。
 
-API response must not increment exposure.
+このレスポンスで露出を加算しないこと。
 
 ---
 
 ## POST `/api/likes`
 
-CSRF required.
+CSRF 必須。
 
-Request:
+リクエスト:
 
 ```json
 {
@@ -1061,18 +1093,18 @@ Request:
 }
 ```
 
-Transactionally:
-1. validate current day / current Persona
-2. validate target
-3. reject self
-4. reject duplicate
-5. enforce sent Like count < 10
-6. insert Like
-7. increment target exposure_count
-8. check reverse Like
-9. if reverse exists, create normalized Match idempotently
+トランザクション内で:
+1. 当日 / 自分の Persona を検証する
+2. 対象を検証する
+3. 自分自身なら拒否する
+4. 重複なら拒否する
+5. 送信済み Like 数 < 10 を強制する
+6. Like を INSERT する
+7. 対象の exposure_count を加算する
+8. 逆方向の Like を確認する
+9. 逆方向が存在すれば、正規化した Match を冪等に作成する
 
-Example response:
+レスポンス例:
 
 ```json
 {
@@ -1083,16 +1115,16 @@ Example response:
 }
 ```
 
-When not matched:
-- `match_id` / `target_persona` may be omitted/null
+Match していない場合:
+- `match_id` / `target_persona` は省略または null でよい
 
 ---
 
 ## POST `/api/passes`
 
-CSRF required.
+CSRF 必須。
 
-Request:
+リクエスト:
 
 ```json
 {
@@ -1100,15 +1132,15 @@ Request:
 }
 ```
 
-Transactionally:
-1. validate current day / target
-2. reject self
-3. reject invalid target state
-4. insert or increment Pass
-5. cap at 3
-6. increment target exposure_count
+トランザクション内で:
+1. 当日 / 対象を検証する
+2. 自分自身なら拒否する
+3. 対象の状態が不正なら拒否する
+4. Pass を INSERT するか加算する
+5. 3 で打ち止めにする
+6. 対象の exposure_count を加算する
 
-Response:
+レスポンス:
 
 ```json
 {
@@ -1121,25 +1153,25 @@ Response:
 
 ## GET `/api/likes/received`
 
-Return Personas that Liked current Persona.
-Newest first.
+現在の Persona に Like した Persona を返す。
+新しい順。
 
-Opening this screen marks Likes as seen by updating:
+この画面を開くと Like を既読にするため次を更新する:
 
 ```text
 participants.likes_last_seen_at
 ```
 
-No pagination in MVP.
+MVP にページングは無い。
 
 ---
 
 ## GET `/api/likes/sent`
 
-Return Personas current Persona has Liked.
-Newest first.
+現在の Persona が Like した Persona を返す。
+新しい順。
 
-Each result additionally includes:
+各要素に次を追加で含める:
 
 ```json
 {
@@ -1147,152 +1179,152 @@ Each result additionally includes:
 }
 ```
 
-No pagination.
+ページングは無い。
 
 ---
 
 ## GET `/api/matches`
 
-Return matched counterpart Personas.
-Newest first.
+Match した相手の Persona を返す。
+新しい順。
 
-Opening this screen updates:
+この画面を開くと次を更新する:
 
 ```text
 participants.matches_last_seen_at
 ```
 
-No pagination.
+ページングは無い。
 
 ---
 
-# 22. Important Transaction / Concurrency Requirements
+# 22. トランザクションと並行性の重要な要件
 
-## Persona generation
-Must be race-safe.
+## Persona の生成
+競合に対して安全であること。
 
-DB unique constraints:
+DB の一意制約:
 - `(cookie_token, game_date)`
 - `personas(participant_id)`
 
-If simultaneous requests occur:
-- return the same resulting Persona
+同時にリクエストが来た場合:
+- 同じ Persona を返すこと
 
-## Like budget
-Must be server-enforced inside transaction.
+## Like 予算
+サーバ側のトランザクションで強制すること。
 
-Two tabs must never permit >10 Likes.
+2つのタブから操作しても10件を超えて Like できてはならない。
 
-Duplicate retry:
-- must not consume Like twice
+重複リトライ:
+- Like を二重に消費してはならない
 
 ## Match
-Must be idempotent.
+冪等であること。
 
-Normalize IDs:
+ID を正規化する:
 
 ```text
 low_id = min(personaA, personaB)
 high_id = max(personaA, personaB)
 ```
 
-DB unique constraint prevents duplicate Match.
+DB の一意制約が Match の重複を防ぐ。
 
 ---
 
-# 23. Non-Goals for MVP
+# 23. MVP で作らないもの
 
-Do **not** implement unless required to make the core flow work:
+コアの体験を成立させるために必要でない限り、次は実装しない:
 
-- chat
+- チャット
 - DM
-- blocking
-- reporting
-- moderation dashboard
-- push notifications
-- browser notifications
+- ブロック
+- 通報
+- モデレーション画面
+- プッシュ通知
+- ブラウザ通知
 - WebSocket
 - SSE
-- swipe gestures
-- historical records
-- cumulative statistics
-- rankings
-- Like rate
-- exposure statistics shown to users
-- rarity / SSR / score
-- search
-- gender filtering
-- matching preferences
-- pagination
-- social login
-- kusa integration API
-- anti-reroll / anti-Cookie-clear system
-- sophisticated abuse prevention
-- NG-word dictionary
-- phone/email/SNS handle detection
-- long-lived profiles
-- facial attractiveness score
-- "parent wealth" or similar additional stats
+- スワイプ操作
+- 履歴
+- 累積統計
+- ランキング
+- Like 率
+- ユーザーに見せる露出統計
+- レア度 / SSR / スコア
+- 検索
+- 性別フィルタ
+- マッチング条件
+- ページング
+- ソーシャルログイン
+- kusa 連携 API
+- 再抽選対策 / Cookie 削除対策
+- 高度な不正対策
+- NG ワード辞書
+- 電話番号 / メール / SNS ID の検出
+- 長期プロフィール
+- 顔の魅力度スコア
+- 「親の資産」のような追加ステータス
 
 ---
 
-# 24. Definition of Done
+# 24. 完成の定義
 
-The MVP is complete when this full path works:
+次の一連の流れが通ればこの MVP は完成:
 
 ```text
-Open app
+アプリを開く
   ↓
-Anonymous Cookie issued/read
+匿名 Cookie を発行 / 読み取り
   ↓
-Today's Participant created
+その日の Participant を作成
   ↓
-"新しい人生を始める"
+「新しい人生を始める」
   ↓
-Server creates one random Persona
+サーバがランダムな Persona を1つ生成
   ↓
-Persona immediately joins the market
+Persona が即座に市場へ参加
   ↓
-User optionally edits name/hobby/bio
+任意で 名前 / 趣味 / ひとこと / 写真 を編集
   ↓
-User opens Discover
+探す画面を開く
   ↓
-5 candidates fetched
+候補を5件取得
   ↓
-One Persona displayed at a time
+1枚ずつ Persona を表示
   ↓
 Like / Pass
   ↓
-10-Like budget is enforced
+10 Like の予算が強制される
   ↓
-Received Likes can be viewed
+Likeされた を閲覧できる
   ↓
-User can Like back
+Like を返せる
   ↓
-Mutual Like creates Match
+相互 Like で Match が成立
   ↓
-Match animation appears
+Match アニメーションが出る
   ↓
-Sent Likes and Matches can be reviewed
+送信済みLike と Match を確認できる
   ↓
-Home shows counts and daily countdown
+マイページにカウンタ、ヘッダーに日次カウントダウン
   ↓
-23:55 warning
+23:55 の警告
   ↓
-00:00 old game state becomes invalid
+00:00 に前日の状態が無効になる
   ↓
-"今日の人生が終了しました"
+「今日の人生が終了しました」
   ↓
-Next day's "新しい人生を始める"
+翌日の「新しい人生を始める」
 ```
 
-If this works reliably, stop adding features and test with real users.
+これが安定して動くなら、機能追加をやめて実ユーザーで試すこと。
 
 ---
 
-# 25. Suggested Project Layout
+# 25. プロジェクト構成の案
 
-Claude Code may adjust names, but keep responsibilities explicit.
+名前は調整してよいが、責務は明示的に保つこと。
 
 ```text
 .
@@ -1303,7 +1335,7 @@ Claude Code may adjust names, but keep responsibilities explicit.
 │   ├── participant/
 │   ├── persona/
 │   ├── matching/
-│   ├── discover/
+│   ├── photo/
 │   ├── http/
 │   │   ├── handler/
 │   │   ├── middleware/
@@ -1325,103 +1357,112 @@ Claude Code may adjust names, but keep responsibilities explicit.
 └── README.md
 ```
 
-Do not create elaborate repository/service/usecase layers merely for architectural purity.
-Use enough separation to keep:
+実際の構成は README を参照。
+
+アーキテクチャ上の潔癖さのためだけに、repository / service / usecase の層を
+作り込まないこと。次のものが明確でテスト可能である程度の分離にとどめる:
 - HTTP
-- domain rules
+- ドメインのルール
 - SQL
-- frontend
-clear and testable.
+- フロントエンド
 
 ---
 
-# 26. Suggested Implementation Order for Claude Code
+# 26. 実装の推奨順
 
-1. Scaffold Go + chi + PostgreSQL + sqlc + migrations
-2. Implement JST game-day clock abstraction
-3. Implement Cookie participant identity
-4. Implement Participant ensure logic
-5. Create migrations/schema
-6. Implement Persona generator + unit tests
-7. Implement Persona generation endpoint
-8. Implement Home endpoint
-9. Implement profile edit validation
-10. Implement Discover query
-11. Implement Pass transaction
-12. Implement Like transaction + 10-limit
-13. Implement Match creation
-14. Implement list APIs
-15. Implement CSRF
-16. Build Svelte shell / Home
-17. Build Persona card
-18. Build New Life flow
-19. Build Discover flow + 5-card prefetch
-20. Build Received / Sent / Match screens
-21. Add Match animation
-22. Add daily countdown + 23:55 + 00:00 transitions
-23. Add physical cleanup job
-24. Test iframe behavior
-25. Test direct URL behavior
-26. Test concurrency around Persona generation and 10-Like budget
+1. Go + chi + PostgreSQL + sqlc + マイグレーションの足場
+2. JST のゲーム日付クロックの抽象化
+3. Cookie による participant identity
+4. Participant の ensure ロジック
+5. マイグレーションとスキーマの作成
+6. Persona 生成器 + ユニットテスト
+7. Persona 生成エンドポイント
+8. ホームのエンドポイント
+9. プロフィール編集の検証
+10. 探すクエリ
+11. Pass のトランザクション
+12. Like のトランザクション + 10件上限
+13. Match の生成
+14. 一覧 API
+15. CSRF
+16. Svelte のシェル / マイページ
+17. Persona カード
+18. 新しい人生を始めるフロー
+19. 探すフロー + 5枚の先読み
+20. Likeされた / 送信済みLike / Match の各画面
+21. Match アニメーション
+22. 日次カウントダウン + 23:55 + 00:00 の遷移
+23. 物理削除ジョブ
+24. iframe 内の動作確認
+25. 直接 URL での動作確認
+26. Persona 生成と10 Like予算まわりの並行性テスト
 
 ---
 
-# 27. Tests That Matter
+# 27. 重要なテスト
 
-Prioritize these tests.
+次を優先する。
 
-## Persona generation
-- age always 20–50
-- height always 140–200
-- university graduate never <22
-- graduate school never <24
-- doctor restrictions obeyed except ホイ卒
-- teacher restrictions obeyed except ホイ卒
-- executive age restriction obeyed except ホイ卒
-- income is always within occupation range
-- income always multiple of 10
+## Persona 生成
+- 年齢が常に 20〜50
+- 身長が常に 140〜200
+- 大卒が22歳未満にならない
+- 大学院卒が24歳未満にならない
+- ホイ卒を除き医師の制約が守られる
+- ホイ卒を除き教員の制約が守られる
+- ホイ卒を除き経営者の年齢制約が守られる
+- 年収が常に職業のレンジ内
+- 年収が常に10の倍数
 
 ## Like
-- cannot self-Like
-- cannot duplicate Like
-- 10 Likes succeed
-- 11th Like fails
-- concurrent Likes never exceed 10
-- retry does not double-consume
-- mutual Like creates one Match
+- 自分に Like できない
+- 同じ相手に重複して Like できない
+- 10件の Like が成功する
+- 11件目の Like が失敗する
+- 同時に Like しても10件を超えない
+- リトライで二重に消費しない
+- 相互 Like で Match が1件だけできる
 
 ## Pass
-- pass_count increments 1 → 2 → 3
-- 3 means excluded
-- cannot exceed 3
-- exposure increments once per successful action
+- pass_count が 1 → 2 → 3 と増える
+- 3 で除外される
+- 3 を超えない
+- 成功した操作1回につき exposure が1増える
 
-## Day boundary
-- yesterday's Persona cannot act today
-- old Likes/Matches never appear today
-- new Participant can be created for same Cookie next day
-- new Persona can be generated next day
-- previous Persona is not reused
+## 日付境界
+- 前日の Persona は当日に行動できない
+- 前日の Like / Match が当日に現れない
+- 同じ Cookie で翌日の Participant が作れる
+- 翌日の Persona が生成できる
+- 前日の Persona は再利用されない
 
-## Security
-- invalid CSRF rejected on mutation
-- A fields cannot be modified by profile PATCH
-- newline rejected
-- explicit URL rejected
-- HTML is treated as text
+## セキュリティ
+- 更新系で不正な CSRF が拒否される
+- プロフィールの PATCH で A属性を変更できない
+- 改行が拒否される
+- 明示的な URL が拒否される
+- HTML がテキストとして扱われる
+
+## プロフィール写真
+- 画像でないアップロードが拒否される
+- 展開爆弾がデコード前に拒否される
+- 再エンコードで EXIF が消える
+- 保存される画像が長辺1024px以下になる
+- 前日ぶんの写真が日次クリーンアップで消える
 
 ---
 
-# 28. Final Instruction to Claude Code
+# 28. 最後に
 
-Implement the MVP exactly around the core daily loop.
+コアとなる1日のループを中心に MVP を実装すること。
 
-When a choice is not specified:
-1. choose the simplest implementation
-2. preserve daily ephemerality
-3. preserve the 10-Like market constraint
-4. preserve Persona/User separation
-5. avoid adding features
-6. avoid architecture that is not justified by the current MVP
+指定が無い箇所では:
+1. 最も単純な実装を選ぶ
+2. 日次の一時性を守る
+3. 10 Like という市場の制約を守る
+4. Persona と User の分離を守る
+5. 機能を足さない
+6. 現在の MVP が正当化しないアーキテクチャを持ち込まない
 
-If implementation details reveal a genuine contradiction in this spec, stop and surface the contradiction rather than silently inventing a new product rule.
+実装を進める中でこの仕様に本当の矛盾が見つかった場合は、勝手に新しいプロダクト
+ルールを作らず、その矛盾を明示して止まること。

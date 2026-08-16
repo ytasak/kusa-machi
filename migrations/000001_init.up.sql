@@ -10,7 +10,7 @@ CREATE TABLE participants (
     UNIQUE (cookie_token, game_date)
 );
 
--- Used by the daily physical deletion job.
+-- 日次の物理削除ジョブが使う。
 CREATE INDEX participants_game_date_idx ON participants (game_date);
 
 CREATE TABLE personas (

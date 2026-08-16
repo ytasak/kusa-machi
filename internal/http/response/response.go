@@ -1,4 +1,4 @@
-// Package response writes the API's JSON success and error payloads.
+// Package response は API の成功／エラーの JSON ペイロードを書き出す。
 package response
 
 import (
@@ -19,7 +19,7 @@ type errorEnvelope struct {
 	Error errorBody `json:"error"`
 }
 
-// JSON writes v with the given status.
+// JSON は指定したステータスで v を書き出す。
 func JSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json; charset=utf-8")
 	w.WriteHeader(status)
@@ -31,11 +31,11 @@ func JSON(w http.ResponseWriter, status int, v any) {
 	}
 }
 
-// NoContent writes an empty 204.
+// NoContent は空の 204 を書き出す。
 func NoContent(w http.ResponseWriter) { w.WriteHeader(http.StatusNoContent) }
 
-// Error writes err as the spec's error envelope. Unknown errors become 500 and
-// are logged, never leaked to the client.
+// Error は err を仕様のエラーエンベロープとして書き出す。未知のエラーは 500 に
+// なりログに残る。クライアントへ内容が漏れることはない。
 func Error(w http.ResponseWriter, err error) {
 	var domainErr *apperr.Error
 	if !errors.As(err, &domainErr) {
@@ -45,7 +45,7 @@ func Error(w http.ResponseWriter, err error) {
 	Fail(w, domainErr.Code, domainErr.Message)
 }
 
-// Fail writes an error envelope for an explicit code.
+// Fail は指定したコードでエラーエンベロープを書き出す。
 func Fail(w http.ResponseWriter, code apperr.Code, message string) {
 	JSON(w, apperr.HTTPStatus(code), errorEnvelope{Error: errorBody{Code: code, Message: message}})
 }

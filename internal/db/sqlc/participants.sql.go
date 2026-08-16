@@ -107,8 +107,8 @@ type UpsertParticipantParams struct {
 	CsrfToken   string
 }
 
-// Race-safe "ensure today's participant". The no-op DO UPDATE makes the
-// existing row visible to RETURNING when a concurrent request won the insert.
+// 競合に強い「当日の Participant を保証する」処理。DO UPDATE を無意味な代入に
+// しておくと、同時実行で INSERT に負けた側でも既存行が RETURNING で返る。
 func (q *Queries) UpsertParticipant(ctx context.Context, arg UpsertParticipantParams) (Participant, error) {
 	row := q.db.QueryRow(ctx, upsertParticipant,
 		arg.ID,

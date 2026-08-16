@@ -22,7 +22,7 @@
 
   onMount(ensureCards);
 
-  // Errors that simply mean "this card is stale": drop it and move on.
+  // 「このカードはもう古い」という意味でしかないエラー。捨てて次へ進む。
   const STALE_CODES = new Set(['AlreadyLiked', 'TargetPersonaUnavailable', 'PassLimitReached']);
 
   function handleActionError(e, personaId) {
@@ -76,8 +76,8 @@
     message = null;
     try {
       const res = await withDayGuard(() => api.post('/api/passes', { persona_id: target.id }));
-      // Once the server excludes the persona for the day there is nothing left
-      // for the local cooldown to do.
+      // サーバがその日の表示対象から外した時点で、ローカルのクールダウンが
+      // やることは何もない。
       consumeCurrent({ cooldownId: res.excluded_for_today ? null : target.id });
       await ensureCards();
     } catch (e) {

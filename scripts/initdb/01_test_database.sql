@@ -1,3 +1,3 @@
--- Separate database used by the Go integration tests so they can truncate
--- freely without touching the development data.
+-- Go の結合テスト専用データベース。開発用データに触れずに
+-- 毎回 TRUNCATE できるように分けている。
 CREATE DATABASE kusamachi_test OWNER kusa;

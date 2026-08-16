@@ -1,10 +1,10 @@
-// Package apperr defines the domain error codes the API contract exposes.
-// Domain packages return these; the HTTP layer maps them to status codes.
+// Package apperr は API 契約が公開するドメインエラーコードを定義する。
+// ドメイン層はこれを返し、HTTP 層がステータスコードへ対応付ける。
 package apperr
 
 import "net/http"
 
-// Code is the machine-readable value the frontend branches on.
+// Code はフロントエンドが分岐に使う機械可読な値。
 type Code string
 
 const (
@@ -17,14 +17,14 @@ const (
 	CodeDayExpired               Code = "DayExpired"
 	CodeInvalidProfileInput      Code = "InvalidProfileInput"
 
-	// Transport-level codes that are not part of the domain vocabulary but
-	// still need a stable code for the frontend.
+	// ドメインの語彙ではないが、フロントエンドが分岐できるよう
+	// 安定したコードが必要な転送層のエラー。
 	CodeInvalidRequest Code = "InvalidRequest"
 	CodeInvalidCSRF    Code = "InvalidCSRFToken"
 	CodeInternal       Code = "InternalError"
 )
 
-// Error is a domain error carrying an API error code.
+// Error は API エラーコードを持つドメインエラー。
 type Error struct {
 	Code    Code
 	Message string
@@ -32,22 +32,22 @@ type Error struct {
 
 func (e *Error) Error() string { return string(e.Code) + ": " + e.Message }
 
-// New builds a domain error.
+// New はドメインエラーを組み立てる。
 func New(code Code, message string) *Error { return &Error{Code: code, Message: message} }
 
-// Predefined errors for the cases that never need a custom message.
+// 個別のメッセージが不要なケース向けの定義済みエラー。
 var (
-	PersonaNotGenerated      = New(CodePersonaNotGenerated, "persona is not generated for today")
-	LikeLimitExceeded        = New(CodeLikeLimitExceeded, "like limit exceeded")
-	AlreadyLiked             = New(CodeAlreadyLiked, "target persona is already liked")
-	TargetPersonaUnavailable = New(CodeTargetPersonaUnavailable, "target persona is unavailable")
-	PassLimitReached         = New(CodePassLimitReached, "pass limit reached")
-	SelfActionNotAllowed     = New(CodeSelfActionNotAllowed, "action against own persona is not allowed")
-	DayExpired               = New(CodeDayExpired, "the game day has expired")
-	InvalidCSRF              = New(CodeInvalidCSRF, "invalid csrf token")
+	PersonaNotGenerated      = New(CodePersonaNotGenerated, "今日のPersonaがまだ生成されていません")
+	LikeLimitExceeded        = New(CodeLikeLimitExceeded, "今日のLikeを使い切りました")
+	AlreadyLiked             = New(CodeAlreadyLiked, "この相手にはすでにLikeを送っています")
+	TargetPersonaUnavailable = New(CodeTargetPersonaUnavailable, "対象のPersonaは利用できません")
+	PassLimitReached         = New(CodePassLimitReached, "Passの上限に達しています")
+	SelfActionNotAllowed     = New(CodeSelfActionNotAllowed, "自分のPersonaへの操作はできません")
+	DayExpired               = New(CodeDayExpired, "ゲーム日が終了しています")
+	InvalidCSRF              = New(CodeInvalidCSRF, "CSRFトークンが不正です")
 )
 
-// HTTPStatus maps a code to the status defined in the API spec.
+// HTTPStatus はコードを仕様書で定義された HTTP ステータスへ対応付ける。
 func HTTPStatus(code Code) int {
 	switch code {
 	case CodeInvalidProfileInput, CodeInvalidRequest:

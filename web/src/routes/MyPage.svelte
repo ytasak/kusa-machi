@@ -10,9 +10,9 @@
 
   let error = $state(null);
 
-  // マイページ is recreated every time the user taps its tab, so this is the
-  // "state refreshes on navigation" the spec asks for: counters and badges
-  // pick up likes and matches that arrived while another screen was open.
+  // マイページはタブを押すたびに作り直されるため、これが仕様の言う
+  // 「画面遷移で状態を再取得する」にあたる。別の画面を開いているあいだに
+  // 届いた Like や Match がカウンタとバッジに反映される。
   onMount(async () => {
     try {
       await refreshHome();

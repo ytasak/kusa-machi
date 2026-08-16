@@ -1,7 +1,8 @@
-// Client-side preparation of a profile picture.
+// プロフィール写真のクライアント側の下準備。
 //
-// This exists to keep uploads small, not to keep them safe: the server decodes
-// and re-encodes whatever arrives, so nothing here is a security control.
+// 目的はアップロードを小さくすることであって、安全にすることではない。
+// サーバは届いたものを必ずデコードして再エンコードするため、
+// ここにあるものはセキュリティ上の防御ではない。
 
 const MAX_EDGE = 1024;
 const QUALITY = 0.85;
@@ -11,7 +12,7 @@ async function decode(file) {
     try {
       return await createImageBitmap(file);
     } catch {
-      // Fall through to the <img> path for formats the bitmap decoder refuses.
+      // ビットマップデコーダが受け付けない形式は <img> 経由にフォールバックする。
     }
   }
 
@@ -27,8 +28,8 @@ async function decode(file) {
 }
 
 /**
- * Center-crops the picture to a square and scales it to at most MAX_EDGE,
- * returning a JPEG blob. A 5MB phone photo comes out around 200KB.
+ * 写真を中央で正方形に切り抜き、長辺が MAX_EDGE 以下になるよう縮小して
+ * JPEG の Blob を返す。5MB のスマホ写真がおよそ200KBになる。
  */
 export async function prepareUpload(file) {
   const source = await decode(file);

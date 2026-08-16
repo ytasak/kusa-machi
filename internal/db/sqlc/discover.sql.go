@@ -44,14 +44,14 @@ type DiscoverCandidatesParams struct {
 	LimitCount int32
 }
 
-// Candidate selection for the discover screen. Every rule lives here so the
-// exclusions cannot drift apart from each other:
+// Discover 画面の候補選択。除外条件が散らばって食い違わないよう、ルールは
+// すべてここに集約している:
 //
-//	not self / today's game day / not already liked / not already matched /
-//	pass_count < 3 / not in the frontend's cooldown list.
+//	自分以外 / 当日のゲーム日 / Like済みでない / Match済みでない /
+//	pass_count < 3 / フロントのクールダウン一覧に含まれない。
 //
-// Priority is the least exposed persona first, then random among equals.
-// Returning a batch must never change exposure_count.
+// 優先度は exposure_count が少ない順、同数ならランダム。
+// バッチを返すだけでは exposure_count を絶対に変えない。
 func (q *Queries) DiscoverCandidates(ctx context.Context, arg DiscoverCandidatesParams) ([]Persona, error) {
 	rows, err := q.db.Query(ctx, discoverCandidates,
 		arg.SelfID,

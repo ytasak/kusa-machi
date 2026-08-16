@@ -148,8 +148,8 @@ func TestConcurrentLikesNeverExceedTheBudget(t *testing.T) {
 }
 
 func TestConcurrentMutualLikesCreateOneMatch(t *testing.T) {
-	// Both sides like each other at the same instant. Neither may miss the
-	// other's like, and they must not create two match rows.
+	// 双方が同じ瞬間に相互 Like する。どちらも相手の Like を見落としてはならず、
+	// Match の行が2件できてもいけない。
 	for range 5 {
 		app := apptest.New(t)
 		alice, aliceCard := app.NewStartedClient(t)
@@ -222,7 +222,7 @@ func TestExposureCountsEvaluationsOnly(t *testing.T) {
 	alice, _ := app.NewStartedClient(t)
 	_, bobCard := app.NewStartedClient(t)
 
-	// Fetching a discover batch shows bob but must not count as an evaluation.
+	// Discover のバッチ取得で bob は表示されるが、評価としては数えない。
 	alice.Discover(t)
 	alice.Discover(t)
 	if got := app.ExposureCount(t, bobCard.ID); got != 0 {
@@ -239,7 +239,7 @@ func TestExposureCountsEvaluationsOnly(t *testing.T) {
 		t.Fatalf("exposure after like = %d, want 2", got)
 	}
 
-	// A rejected action must not count.
+	// 拒否された操作は数えない。
 	alice.Like(t, bobCard.ID).RequireError(t, apperr.CodeAlreadyLiked)
 	if got := app.ExposureCount(t, bobCard.ID); got != 2 {
 		t.Fatalf("exposure after rejected like = %d, want 2", got)
@@ -296,8 +296,8 @@ func TestDiscoverPrefersLeastExposedPersonas(t *testing.T) {
 	alice, _ := app.NewStartedClient(t)
 	_, targets := app.NewStartedClients(t, 6)
 
-	// Give five personas some exposure; the sixth stays untouched and must
-	// therefore be in every batch alice receives.
+	// 5人に exposure を与える。6人目は手つかずなので、alice が受け取る
+	// どのバッチにも必ず含まれるはず。
 	rater, _ := app.NewStartedClient(t)
 	for _, target := range targets[:5] {
 		rater.MustPass(t, target.ID)

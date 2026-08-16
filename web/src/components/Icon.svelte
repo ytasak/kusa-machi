@@ -1,5 +1,5 @@
 <script>
-  // Inline SVG only: the app must stay self-contained and same-Origin.
+  // インライン SVG のみ。アプリは自己完結かつ同一 Origin である必要がある。
   let { name, size = 24, filled = false } = $props();
 </script>
 

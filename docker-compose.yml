@@ -1,5 +1,5 @@
-# Local development database only. The credentials below are throwaway values
-# for a container that is never exposed outside the developer machine.
+# ローカル開発用のデータベース専用。以下の認証情報は、開発機の外に公開しない
+# コンテナのための使い捨ての値。
 services:
   db:
     image: postgres:17-alpine

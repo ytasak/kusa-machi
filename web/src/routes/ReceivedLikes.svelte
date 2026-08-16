@@ -15,16 +15,16 @@
   let message = $state(null);
   let matchedPersona = $state(null);
 
-  // Per-card outcome of a like-back in this session.
+  // このセッションでの、カードごとの Like お返しの結果。
   let outcome = $state({});
 
   const outOfLikes = $derived(session.remainingLikes <= 0);
 
   onMount(async () => {
     try {
-      // The received list alone cannot say whether this persona was already
-      // liked back, so the day's sent likes are read too: otherwise a persona
-      // you already matched with still shows a "Likeを返す" button.
+      // Likeされた一覧だけでは、その相手にすでに Like を返したか分からない。
+      // そのため当日の送信済み Like もあわせて取得する。これをしないと、
+      // すでにマッチ済みの相手にも「Likeを返す」ボタンが出てしまう。
       const [received, sent] = await Promise.all([
         api.get('/api/likes/received'),
         api.get('/api/likes/sent'),
@@ -35,7 +35,7 @@
         sent.personas.map((p) => [p.id, p.matched ? 'matched' : 'liked']),
       );
 
-      // Opening the screen is what clears the badge server-side.
+      // サーバ側でバッジが消えるのは、この画面を開いたとき。
       session.hasUnseenLikes = false;
       session.receivedLikeCount = personas.length;
     } catch (e) {

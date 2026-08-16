@@ -9,7 +9,7 @@ import (
 	"testing"
 )
 
-// distDir builds a fake Vite output directory.
+// distDir は Vite の出力ディレクトリを模したものを作る。
 func distDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
@@ -34,11 +34,11 @@ func TestStaticHandlerServesAssetsAndFallsBackToIndex(t *testing.T) {
 		path     string
 		wantBody string
 	}{
-		{"root serves the app", "/", "<!doctype html>"},
-		{"a built asset is served as itself", "/assets/app.js", "export default 1;"},
-		// Opening the app directly on a deep link must still boot the SPA.
-		{"deep link falls back to index", "/matches", "<!doctype html>"},
-		{"unknown nested path falls back to index", "/a/b/c", "<!doctype html>"},
+		{"ルートでアプリが配信される", "/", "<!doctype html>"},
+		{"ビルド済みアセットはそのまま配信される", "/assets/app.js", "export default 1;"},
+		// 深いパスを直接開いても SPA が起動する必要がある。
+		{"深いパスは index にフォールバックする", "/matches", "<!doctype html>"},
+		{"未知のネストしたパスも index にフォールバックする", "/a/b/c", "<!doctype html>"},
 	}
 
 	for _, tc := range tests {
@@ -57,8 +57,8 @@ func TestStaticHandlerServesAssetsAndFallsBackToIndex(t *testing.T) {
 }
 
 func TestStaticHandlerDoesNotBlockIframeEmbedding(t *testing.T) {
-	// The app must be embeddable in the kusa iframe, so nothing may add
-	// X-Frame-Options or a frame-ancestors policy.
+	// kusa の iframe に埋め込める必要があるため、X-Frame-Options や
+	// frame-ancestors ポリシーを付けてはならない。
 	rec := httptest.NewRecorder()
 	staticHandler(distDir(t))(rec, httptest.NewRequest(http.MethodGet, "/", nil))
 

@@ -1,7 +1,7 @@
-// Thin fetch wrapper for the same-Origin /api surface.
+// 同一 Origin の /api に対する薄い fetch ラッパ。
 //
-// The CSRF token is issued per game day by GET /api/home and kept in memory
-// only (never in storage), then sent on every mutating request.
+// CSRF トークンはゲーム日ごとに GET /api/home が発行し、メモリ上にだけ保持して
+// （ストレージには置かない）、更新系リクエストのたびに送る。
 
 const CSRF_HEADER = 'X-CSRF-Token';
 
@@ -47,6 +47,6 @@ export const api = {
   post: (path, body) => request('POST', path, body ?? {}),
   patch: (path, body) => request('PATCH', path, body ?? {}),
   delete: (path) => request('DELETE', path),
-  // Raw image bytes; the body is already a JPEG blob.
+  // 生の画像バイト列。ボディはすでに JPEG の Blob になっている。
   upload: (path, blob) => send('POST', path, { headers: { 'Content-Type': blob.type }, body: blob }),
 };

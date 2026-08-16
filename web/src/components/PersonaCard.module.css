@@ -1,7 +1,7 @@
 .card {
   position: relative;
-  /* Stated explicitly so the card looks identical inside the centred match
-     overlay as it does in a list. */
+  /* 明示しておくことで、中央寄せの Match オーバーレイの中でも
+     一覧の中と同じ見た目になる。 */
   text-align: left;
   background: var(--surface);
   border-radius: var(--radius-card);
@@ -9,15 +9,15 @@
   overflow: hidden;
 }
 
-/* ---- hero: the large card used on 探す and in the match animation ---- */
+/* ---- hero: 探す画面と Match アニメーションで使う大きいカード ---- */
 
 .hero {
   display: flex;
   flex-direction: column;
 }
 
-/* The picture area absorbs the spare height, so the card fills the screen the
-   way a real matching app card does instead of floating in the middle. */
+/* 写真部分が余った高さを吸収するので、カードが画面中央に浮かず、
+   実際のマッチングアプリのカードのように画面を埋める。 */
 .hero .head {
   flex: 1;
   min-height: 190px;
@@ -34,7 +34,7 @@
   text-align: center;
 }
 
-/* ---- row: the compact card used in lists ---- */
+/* ---- row: 一覧で使うコンパクトなカード ---- */
 
 .row .head {
   display: flex;

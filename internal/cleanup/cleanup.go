@@ -1,8 +1,8 @@
-// Package cleanup physically deletes expired game data.
+// Package cleanup は期限切れのゲームデータを物理削除する。
 //
-// Correctness never depends on this job: every query is scoped by game_date, so
-// stale rows are already invisible. The job only reclaims storage, which makes
-// it safe to run late, twice, or not at all.
+// 正しさがこのジョブに依存することはない。すべてのクエリが game_date で
+// スコープされているため、古い行はすでに見えない。このジョブは容量を
+// 回収するだけなので、遅れて動いても、二重に動いても、動かなくても安全。
 package cleanup
 
 import (
@@ -17,23 +17,23 @@ import (
 	"kusamachi/internal/photo"
 )
 
-// Job deletes participants from previous game days. ON DELETE CASCADE removes
-// their personas, likes, passes and matches.
+// Job は過去のゲーム日の participant を削除する。ON DELETE CASCADE により
+// 紐づく persona / like / pass / match も一緒に消える。
 type Job struct {
 	q      *sqlc.Queries
 	clock  clock.Clock
 	photos *photo.Store
 }
 
-// NewJob builds the deletion job.
+// NewJob は削除ジョブを組み立てる。
 func NewJob(pool *pgxpool.Pool, clk clock.Clock, photos *photo.Store) *Job {
 	return &Job{q: sqlc.New(pool), clock: clk, photos: photos}
 }
 
-// RunOnce deletes everything older than the current JST game day and reports
-// how many participants were removed. Idempotent and safe to retry.
+// RunOnce は現在の JST ゲーム日より古いものをすべて削除し、消した participant の
+// 件数を返す。冪等でリトライしても安全。
 //
-// Photo files are not covered by ON DELETE CASCADE, so they are swept too.
+// 写真ファイルは ON DELETE CASCADE の対象外なので、あわせて掃除する。
 func (j *Job) RunOnce(ctx context.Context) (int64, error) {
 	today := clock.Today(j.clock)
 
@@ -50,7 +50,7 @@ func (j *Job) RunOnce(ctx context.Context) (int64, error) {
 	return deleted, nil
 }
 
-// Run executes the job immediately and then on every tick until ctx is done.
+// Run はジョブを即座に実行し、その後 ctx が終わるまで一定間隔で実行し続ける。
 func (j *Job) Run(ctx context.Context, interval time.Duration) {
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()

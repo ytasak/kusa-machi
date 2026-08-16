@@ -1,5 +1,5 @@
-// Package persona owns the daily persona: how it is generated and what the
-// participant is allowed to edit afterwards.
+// Package persona は日替わり Persona を担う。生成方法と、生成後に参加者が
+// 編集できる範囲を定義する。
 package persona
 
 import (
@@ -8,13 +8,13 @@ import (
 	"sync"
 )
 
-// Gender values stored in the database. The Japanese labels live in the UI.
+// DB に保存する性別の値。日本語ラベルは UI 側が持つ。
 const (
 	GenderMale   = "male"
 	GenderFemale = "female"
 )
 
-// Education values.
+// 学歴の値。
 const (
 	EduJuniorHigh = "中卒"
 	EduHighSchool = "高卒"
@@ -22,11 +22,11 @@ const (
 	EduJuniorColl = "短大卒"
 	EduUniversity = "大卒"
 	EduGraduate   = "大学院卒"
-	// EduHoi is a kusa in-joke. It waives every occupation restriction.
+	// EduHoi は kusa の内輪ネタ。職業制約をすべて無効化する。
 	EduHoi = "ホイ卒"
 )
 
-// Occupation values.
+// 職業の値。
 const (
 	OccCivilServant = "公務員"
 	OccDoctor       = "医師"
@@ -45,15 +45,15 @@ const (
 	OccUnemployed   = "無職"
 )
 
-// Attributes are the system-generated, immutable "A" attributes. They are
-// decided once per game day and never regenerated.
+// Attributes はシステムが生成する不変の「A属性」。ゲーム日ごとに一度だけ
+// 決まり、その日のうちに再生成されることはない。
 type Attributes struct {
 	Age          int
 	Gender       string
 	HeightCm     int
 	Education    string
 	Occupation   string
-	AnnualIncome int // 万円, always a multiple of 10
+	AnnualIncome int // 万円。常に10の倍数
 }
 
 const (
@@ -70,7 +70,7 @@ type weighted[T any] struct {
 }
 
 type ageBand struct {
-	lo, hi int // inclusive
+	lo, hi int // 両端を含む
 }
 
 var ageBands = []weighted[ageBand]{
@@ -97,7 +97,7 @@ var educations = []weighted[string]{
 	{EduHoi, 5},
 }
 
-// minAgeForEducation is the youngest age at which an education is plausible.
+// minAgeForEducation は、その学歴が成立しうる最年少の年齢。
 var minAgeForEducation = map[string]int{
 	EduUniversity: 22,
 	EduGraduate:   24,
@@ -121,11 +121,11 @@ var occupations = []weighted[string]{
 	{OccUnemployed, 4},
 }
 
-// occupationRule is the minimum plausibility gate for an occupation.
-// A zero value means "no restriction".
+// occupationRule は職業に対する最低限の妥当性チェック。
+// ゼロ値は「制約なし」を意味する。
 type occupationRule struct {
 	minAge     int
-	educations []string // if non-empty, education must be one of these
+	educations []string // 空でなければ、学歴はこのいずれかである必要がある
 }
 
 var occupationRules = map[string]occupationRule{
@@ -134,7 +134,7 @@ var occupationRules = map[string]occupationRule{
 	OccExecutive: {minAge: 25},
 }
 
-// incomeRange is the inclusive 万円 range for an occupation.
+// incomeRange は職業ごとの年収レンジ（万円、両端を含む）。
 type incomeRange struct {
 	lo, hi int
 }
@@ -157,24 +157,24 @@ var incomeRanges = map[string]incomeRange{
 	OccUnemployed:   {0, 100},
 }
 
-// Generator produces daily personas. Safe for concurrent use.
+// Generator は日替わり Persona を生成する。並行利用しても安全。
 type Generator struct {
 	mu  sync.Mutex
 	rnd *rand.Rand
 }
 
-// NewGenerator seeds a generator from the runtime's entropy source.
+// NewGenerator はランタイムのエントロピー源からシードした生成器を作る。
 func NewGenerator() *Generator {
 	return &Generator{rnd: rand.New(rand.NewPCG(rand.Uint64(), rand.Uint64()))}
 }
 
-// NewGeneratorWithSeed builds a deterministic generator for tests.
+// NewGeneratorWithSeed はテスト用に決定的な生成器を作る。
 func NewGeneratorWithSeed(seed1, seed2 uint64) *Generator {
 	return &Generator{rnd: rand.New(rand.NewPCG(seed1, seed2))}
 }
 
-// Generate rolls one persona in the spec's fixed order:
-// age -> gender -> height -> education -> occupation -> annual income.
+// Generate は仕様が定める固定順で Persona を1体抽選する:
+// 年齢 -> 性別 -> 身長 -> 学歴 -> 職業 -> 年収。
 func (g *Generator) Generate() Attributes {
 	g.mu.Lock()
 	defer g.mu.Unlock()
@@ -201,8 +201,8 @@ func (g *Generator) age() int {
 	return band.lo + g.rnd.IntN(band.hi-band.lo+1)
 }
 
-// education drops candidates the age makes implausible, which renormalises the
-// remaining weights automatically.
+// education は年齢的にありえない候補を除外する。残った候補だけで抽選するため
+// 重みは自動的に再正規化される。
 func (g *Generator) education(age int) string {
 	candidates := make([]weighted[string], 0, len(educations))
 	for _, e := range educations {
@@ -213,8 +213,8 @@ func (g *Generator) education(age int) string {
 	return pick(g.rnd, candidates)
 }
 
-// occupation drops candidates whose rule the persona fails. ホイ卒 waives every
-// rule, which is the whole point of the joke.
+// occupation は制約を満たさない候補を除外する。ホイ卒はすべての制約を
+// 無効化する。それがこのネタの肝。
 func (g *Generator) occupation(age int, education string) string {
 	candidates := make([]weighted[string], 0, len(occupations))
 	for _, o := range occupations {
@@ -242,9 +242,9 @@ func allowsOccupation(age int, education, occupation string) bool {
 	return true
 }
 
-// income picks a value inside the occupation's range in 10万円 steps.
-// The age adjustment is deliberately weak: it shifts the distribution without
-// ever making the extremes unreachable.
+// income は職業のレンジ内から10万円刻みで値を選ぶ。
+// 年齢による補正は意図的に弱くしてあり、分布を寄せるだけで
+// 両端に到達不能な値を作らない。
 func (g *Generator) income(age int, occupation string) int {
 	r := incomeRanges[occupation]
 	steps := (r.hi - r.lo) / incomeStep
@@ -258,7 +258,7 @@ func (g *Generator) income(age int, occupation string) int {
 	return r.lo + step*incomeStep
 }
 
-// ageIncomeExponent skews a uniform [0,1) sample: >1 leans low, <1 leans high.
+// ageIncomeExponent は一様分布 [0,1) を歪める。1より大きいと低め、小さいと高めに寄る。
 func ageIncomeExponent(age int) float64 {
 	switch {
 	case age < 30:
@@ -270,9 +270,9 @@ func ageIncomeExponent(age int) float64 {
 	}
 }
 
-// pick chooses one value with probability proportional to its weight.
-// Candidates must be non-empty with positive total weight; every filtered list
-// in this package always keeps at least one unrestricted candidate.
+// pick は重みに比例した確率で値を1つ選ぶ。
+// 候補は空でなく重みの合計が正である必要がある。このパッケージの絞り込みは
+// 必ず制約なしの候補を1つ以上残すため、その条件は常に満たされる。
 func pick[T any](rnd *rand.Rand, items []weighted[T]) T {
 	total := 0
 	for _, it := range items {

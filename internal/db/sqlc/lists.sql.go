@@ -24,7 +24,7 @@ WHERE m.persona_low_id = $1
 ORDER BY m.created_at DESC, m.id DESC
 `
 
-// Only the counterpart persona of each match, newest first.
+// 各 Match の相手 Persona だけを新しい順に返す。
 func (q *Queries) ListMatches(ctx context.Context, personaID uuid.UUID) ([]Persona, error) {
 	rows, err := q.db.Query(ctx, listMatches, personaID)
 	if err != nil {
@@ -68,8 +68,8 @@ WHERE l.to_persona_id = $1
 ORDER BY l.created_at DESC, l.id DESC
 `
 
-// Personas who liked the current persona, newest first. No timestamps and no
-// sender budget information are exposed.
+// 自分に Like を送った Persona を新しい順に返す。時刻も送信者の Like 残数も
+// 一切公開しない。
 func (q *Queries) ListReceivedLikes(ctx context.Context, personaID uuid.UUID) ([]Persona, error) {
 	rows, err := q.db.Query(ctx, listReceivedLikes, personaID)
 	if err != nil {
@@ -135,8 +135,8 @@ type ListSentLikesRow struct {
 	Matched        bool
 }
 
-// The day's like allocation history. Matched targets stay in the list and are
-// flagged so the screen can show a MATCH badge.
+// その日の Like 配分の履歴。Match した相手も一覧に残し、画面が MATCH バッジを
+// 出せるようフラグを立てる。
 func (q *Queries) ListSentLikes(ctx context.Context, personaID uuid.UUID) ([]ListSentLikesRow, error) {
 	rows, err := q.db.Query(ctx, listSentLikes, personaID)
 	if err != nil {

@@ -93,8 +93,8 @@ func TestNormalizeConvertsPNGToJPEG(t *testing.T) {
 }
 
 func TestNormalizeStripsMetadata(t *testing.T) {
-	// A JPEG carrying an EXIF-looking APP1 segment must come out without it:
-	// an anonymous app publishing someone's GPS coordinates would be a leak.
+	// EXIF に見える APP1 セグメントを持つ JPEG は、それが消えた状態で出てくる
+	// 必要がある。匿名アプリが誰かの GPS 座標を公開するのは情報漏洩にあたる。
 	original := jpegBytes(t, 200, 200)
 	exif := []byte("Exif\x00\x00SECRET-GPS-PAYLOAD")
 	app1 := append([]byte{0xFF, 0xE1, byte((len(exif) + 2) >> 8), byte((len(exif) + 2) & 0xFF)}, exif...)
@@ -114,10 +114,10 @@ func TestNormalizeRejectsBadInput(t *testing.T) {
 		name string
 		body []byte
 	}{
-		{"empty", nil},
-		{"not an image", []byte("<html><script>alert(1)</script></html>")},
-		{"gif is not accepted", []byte("GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;")},
-		{"too many bytes", bytes.Repeat([]byte{0xFF}, MaxUploadBytes+1)},
+		{"空", nil},
+		{"画像ではない", []byte("<html><script>alert(1)</script></html>")},
+		{"GIFは受け付けない", []byte("GIF89a\x01\x00\x01\x00\x00\xff\x00,\x00\x00\x00\x00\x01\x00\x01\x00\x00\x02\x00;")},
+		{"バイト数が上限超過", bytes.Repeat([]byte{0xFF}, MaxUploadBytes+1)},
 	}
 
 	for _, tc := range tests {
@@ -133,8 +133,8 @@ func TestNormalizeRejectsBadInput(t *testing.T) {
 }
 
 func TestNormalizeRejectsDecompressionBombsBeforeDecoding(t *testing.T) {
-	// A PNG header claiming a huge canvas compresses to almost nothing, so the
-	// size cap alone would not catch it. The pixel count check must.
+	// 巨大なキャンバスを宣言した PNG はほとんど圧縮されて小さくなるため、
+	// サイズ上限だけでは弾けない。画素数チェックで弾く必要がある。
 	huge := pngBytes(t, 12000, 12000)
 	if len(huge) > MaxUploadBytes {
 		t.Fatalf("fixture is %d bytes, expected the size cap not to be what rejects it", len(huge))
@@ -172,7 +172,7 @@ func TestStoreRoundTrip(t *testing.T) {
 	if _, err := store.Open(day, id); err == nil {
 		t.Fatal("photo is still readable after delete")
 	}
-	// Deleting twice is not an error.
+	// 2回削除してもエラーにならない。
 	if err := store.Delete(day, id); err != nil {
 		t.Fatalf("second delete: %v", err)
 	}
@@ -211,7 +211,7 @@ func TestDeleteBeforeDropsOnlyPreviousDays(t *testing.T) {
 		t.Fatalf("today's photo was removed: %v", err)
 	}
 
-	// Idempotent.
+	// 冪等であること。
 	if removed, err := store.DeleteBefore(today); err != nil || removed != 0 {
 		t.Fatalf("second sweep removed %d (err %v), want 0", removed, err)
 	}

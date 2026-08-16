@@ -1,4 +1,4 @@
-// Package config loads server configuration from the environment.
+// Package config はサーバ設定を環境変数から読み込む。
 package config
 
 import (
@@ -10,24 +10,24 @@ import (
 	"time"
 )
 
-// Config holds every knob the server needs. Defaults are production-shaped;
-// local development overrides them through the environment (see README).
+// Config はサーバが必要とする設定をすべて持つ。既定値は本番向けで、
+// ローカル開発では環境変数で上書きする（README 参照）。
 type Config struct {
 	Addr        string
 	DatabaseURL string
 	WebDistDir  string
 	PhotoDir    string
 
-	// CookieSecure / CookieSameSite exist only so the app can be exercised over
-	// plain http on localhost. The spec's required production values are the
-	// defaults: Secure, SameSite=None (needed for the kusa iframe).
+	// CookieSecure / CookieSameSite は localhost の平文 http で動作確認するために
+	// だけ存在する。仕様が本番に要求する値が既定値になっている:
+	// Secure かつ SameSite=None（kusa の iframe 埋め込みに必要）。
 	CookieSecure   bool
 	CookieSameSite http.SameSite
 
 	CleanupInterval time.Duration
 }
 
-// Load reads the environment, applying defaults.
+// Load は環境変数を読み、既定値を適用する。
 func Load() (Config, error) {
 	cfg := Config{
 		Addr:            env("ADDR", ":8080"),

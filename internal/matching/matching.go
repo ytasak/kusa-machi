@@ -1,5 +1,5 @@
-// Package matching holds the market rules: the daily like budget, pass limits
-// and the normalised persona pair a match is stored under.
+// Package matching は市場のルールを持つ。1日の Like 予算、Pass の上限、
+// および Match を保存する際の正規化済み Persona ペアを扱う。
 package matching
 
 import (
@@ -8,24 +8,24 @@ import (
 	"github.com/google/uuid"
 )
 
-// DailyLikeBudget is the number of likes every persona gets per game day.
-// Received-like replies consume the same budget; there is no separate quota.
+// DailyLikeBudget は各 Persona がゲーム日ごとに得る Like の数。
+// Like へのお返しも同じ予算を消費し、別枠は存在しない。
 const DailyLikeBudget = 10
 
-// MaxPassCount is the pass count at which a target is excluded for the day.
+// MaxPassCount は、相手がその日の表示対象から外れる Pass 回数。
 const MaxPassCount = 3
 
-// NormalizePair orders a persona pair so a match is stored exactly once,
-// regardless of who liked first.
+// NormalizePair は Persona のペアを並べ替える。どちらが先に Like しても
+// Match がちょうど1件だけ保存されるようにするため。
 func NormalizePair(a, b uuid.UUID) (low, high uuid.UUID) {
-	// Byte order matches PostgreSQL's own uuid ordering.
+	// バイト順は PostgreSQL の uuid の並び順と一致する。
 	if bytes.Compare(a[:], b[:]) < 0 {
 		return a, b
 	}
 	return b, a
 }
 
-// RemainingLikes clamps the remaining budget to a non-negative value.
+// RemainingLikes は残り予算を負にならないよう丸める。
 func RemainingLikes(sent int64) int {
 	remaining := DailyLikeBudget - int(sent)
 	if remaining < 0 {

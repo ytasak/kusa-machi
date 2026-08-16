@@ -1,5 +1,5 @@
-// Display helpers. Everything here returns plain strings; Svelte escapes them
-// on render, and no value is ever inserted as HTML.
+// 表示用のヘルパー。ここが返すのはすべてプレーンな文字列で、描画時に Svelte が
+// エスケープする。HTML として挿入される値は一切ない。
 
 const GENDER_LABELS = {
   male: '男性',
@@ -22,7 +22,7 @@ export function income(persona) {
   return `${persona.annual_income}万円`;
 }
 
-/** Formats a duration in milliseconds as HH:MM:SS. */
+/** ミリ秒の経過時間を HH:MM:SS 形式にする。 */
 export function countdown(ms) {
   const total = Math.max(0, Math.floor(ms / 1000));
   const hours = Math.floor(total / 3600);

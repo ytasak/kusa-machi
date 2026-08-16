@@ -1,5 +1,6 @@
-// Package httpx wires the chi router: /api/* endpoints plus the Svelte build
-// served from the same Origin, so the app works in an iframe and standalone.
+// Package httpx は chi のルータを組み立てる。/api/* のエンドポイントに加えて
+// Svelte のビルドを同一 Origin で配信するため、iframe 埋め込みでも
+// 直接 URL を開いた場合でも動作する。
 package httpx
 
 import (
@@ -23,7 +24,7 @@ import (
 	"kusamachi/internal/photo"
 )
 
-// Deps are the collaborators the router needs.
+// Deps はルータが必要とする依存。
 type Deps struct {
 	Pool       *pgxpool.Pool
 	Clock      clock.Clock
@@ -33,7 +34,7 @@ type Deps struct {
 	WebDistDir string
 }
 
-// NewRouter builds the whole HTTP surface.
+// NewRouter は HTTP の全面を組み立てる。
 func NewRouter(deps Deps) http.Handler {
 	q := sqlc.New(deps.Pool)
 	h := handler.New(deps.Pool, deps.Clock, deps.Generator, deps.Photos)
@@ -54,8 +55,8 @@ func NewRouter(deps Deps) http.Handler {
 			response.JSON(w, http.StatusOK, map[string]string{"status": "ok"})
 		})
 
-		// Everything below identifies the browser, guarantees today's
-		// participant exists, and requires a CSRF token to mutate.
+		// 以下はすべて、ブラウザを識別し、当日の participant の存在を保証し、
+		// 更新系には CSRF トークンを要求する。
 		r.Group(func(r chi.Router) {
 			r.Use(middleware.WithSession(q, deps.Clock, deps.Cookie))
 			r.Use(middleware.CSRF(q))
@@ -80,7 +81,7 @@ func NewRouter(deps Deps) http.Handler {
 	return r
 }
 
-// staticHandler serves the Vite build with SPA fallback to index.html.
+// staticHandler は Vite のビルドを配信し、SPA として index.html にフォールバックする。
 func staticHandler(dir string) http.HandlerFunc {
 	files := http.FileServer(http.Dir(dir))
 	index := filepath.Join(dir, "index.html")
@@ -91,7 +92,7 @@ func staticHandler(dir string) http.HandlerFunc {
 			return
 		}
 
-		// path.Clean on a rooted path neutralises "..", so the join stays inside dir.
+		// 先頭スラッシュ付きパスへの path.Clean は ".." を無効化するため、結合結果は dir の外に出ない。
 		clean := path.Clean("/" + r.URL.Path)
 		if st, err := os.Stat(filepath.Join(dir, filepath.FromSlash(clean))); err == nil && !st.IsDir() {
 			files.ServeHTTP(w, r)

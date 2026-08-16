@@ -30,8 +30,8 @@
 
   const remaining = $derived(remainingMsFrom(ticker.now));
 
-  // The day is over the moment the clock passes 00:00 JST, whether or not the
-  // server has been asked anything since.
+  // 時計が JST の 00:00 を過ぎた瞬間にその日は終わる。以降サーバに
+  // 何か問い合わせたかどうかは関係ない。
   $effect(() => {
     if (!session.loading && session.gameDate && remaining <= 0) {
       markDayEnded();
@@ -70,8 +70,8 @@
     <button class={ui.secondary} onclick={() => bootstrap()}>再読み込み</button>
   </div>
 {:else if !session.personaGenerated}
-  <!-- Nothing in the market works without today's persona, so the start
-       screen takes over the whole app rather than sitting inside a tab. -->
+  <!-- 当日の Persona が無ければ市場では何もできないため、開始画面はタブの
+       中に収まらず、アプリ全体を占有する。 -->
   <StartNewLife />
 {:else}
   <div class={styles.app}>

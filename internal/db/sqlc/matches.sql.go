@@ -58,8 +58,8 @@ type InsertMatchParams struct {
 	PersonaHighID uuid.UUID
 }
 
-// Idempotent match creation on the normalised pair. The no-op DO UPDATE returns
-// the existing row so a retry yields the same match id instead of an error.
+// 正規化済みペアに対する冪等な Match 生成。DO UPDATE を無意味な代入にすることで
+// 既存行が返るため、リトライしてもエラーにならず同じ match id が得られる。
 func (q *Queries) InsertMatch(ctx context.Context, arg InsertMatchParams) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, insertMatch, arg.ID, arg.PersonaLowID, arg.PersonaHighID)
 	var id uuid.UUID

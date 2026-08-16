@@ -14,7 +14,7 @@
     try {
       const res = await api.get('/api/matches');
       personas = res.personas;
-      // Opening the screen is what clears the badge server-side.
+      // サーバ側でバッジが消えるのは、この画面を開いたとき。
       session.hasUnseenMatches = false;
       session.matchCount = personas.length;
     } catch (e) {

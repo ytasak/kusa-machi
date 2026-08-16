@@ -4,8 +4,7 @@ import (
 	"testing"
 )
 
-// sampleSize is large enough that every weighted branch, including the 2%
-// occupations, is exercised many times.
+// sampleSize は、2% の職業を含むすべての重み付き分岐が何度も通る程度に大きい。
 const sampleSize = 200_000
 
 func sample(t *testing.T) []Attributes {
@@ -47,7 +46,7 @@ func TestEducationAgeRestrictions(t *testing.T) {
 				t.Fatalf("sample %d: 大学院卒 at age %d", i, a.Age)
 			}
 		case EduJuniorHigh, EduHighSchool, EduVocational, EduJuniorColl, EduHoi:
-			// no additional restriction
+			// 追加の制約なし
 		default:
 			t.Fatalf("sample %d: unknown education %q", i, a.Education)
 		}
@@ -57,7 +56,7 @@ func TestEducationAgeRestrictions(t *testing.T) {
 func TestOccupationRestrictions(t *testing.T) {
 	for i, a := range sample(t) {
 		if a.Education == EduHoi {
-			continue // ホイ卒 waives every occupation restriction
+			continue // ホイ卒は職業制約をすべて無効化する
 		}
 		switch a.Occupation {
 		case OccDoctor:
@@ -83,8 +82,8 @@ func TestOccupationRestrictions(t *testing.T) {
 }
 
 func TestHoiSotsuWaivesOccupationRestrictions(t *testing.T) {
-	// The joke only works if a ホイ卒 can actually be a doctor / teacher /
-	// executive at an age the normal rules would forbid.
+	// 通常のルールなら禁止される年齢で、ホイ卒が実際に医師・教員・経営者に
+	// なれてはじめてこのネタが成立する。
 	waived := map[string]bool{}
 	for _, a := range sample(t) {
 		if a.Education != EduHoi {
@@ -119,8 +118,8 @@ func TestIncomeRangeAndStep(t *testing.T) {
 }
 
 func TestIncomeReachesBothExtremes(t *testing.T) {
-	// "Extreme combinations must still remain possible": the age skew must not
-	// clip either end of a range.
+	// 「極端な組み合わせも起こりうること」。年齢による偏りがレンジの
+	// どちらの端も削ってはいけない。
 	sawMin, sawMax := map[string]bool{}, map[string]bool{}
 	for _, a := range sample(t) {
 		r := incomeRanges[a.Occupation]
@@ -160,8 +159,8 @@ func TestEveryEducationAndOccupationIsReachable(t *testing.T) {
 }
 
 func TestAgeSkewsIncomeWeakly(t *testing.T) {
-	// The adjustment must be visible but weak, and it must never reorder the
-	// occupation ranges. Compare average income within one occupation.
+	// 補正は見て取れる程度でありながら弱く、職業ごとのレンジの上下関係を
+	// 崩してはならない。1つの職業内で平均年収を比較する。
 	sum := map[string]float64{}
 	count := map[string]float64{}
 

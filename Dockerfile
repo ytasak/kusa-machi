@@ -1,5 +1,5 @@
-# Single-container deployment: the Go binary serves both /api and the Svelte
-# build, so the frontend and the API always share an Origin.
+# 1コンテナ構成。Go のバイナリが /api と Svelte のビルドの両方を配信するため、
+# フロントエンドと API は常に同一 Origin になる。
 
 FROM node:24-alpine AS web
 WORKDIR /web
@@ -20,8 +20,8 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY --from=web /web/dist /app/web/dist
-# Profile pictures are written here. They are day-scoped and swept daily, so a
-# restart losing them only costs the current day's pictures.
+# プロフィール写真の書き込み先。日単位で管理し毎日掃除されるため、再起動で
+# 失われても失うのは当日ぶんの写真だけ。
 RUN mkdir -p /app/data/photos
 ENV WEB_DIST_DIR=/app/web/dist \
     PHOTO_DIR=/app/data/photos \

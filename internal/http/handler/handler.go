@@ -1,4 +1,4 @@
-// Package handler implements the /api endpoints.
+// Package handler は /api のエンドポイントを実装する。
 package handler
 
 import (
@@ -21,10 +21,10 @@ import (
 	"kusamachi/internal/photo"
 )
 
-// maxBodyBytes caps request bodies; every payload in this API is tiny.
+// maxBodyBytes はリクエストボディの上限。この API のペイロードはどれも小さい。
 const maxBodyBytes = 8 << 10
 
-// Handler carries the dependencies every endpoint needs.
+// Handler は各エンドポイントが必要とする依存を持つ。
 type Handler struct {
 	pool     *pgxpool.Pool
 	q        *sqlc.Queries
@@ -34,7 +34,7 @@ type Handler struct {
 	photos   *photo.Store
 }
 
-// New builds the handler set.
+// New はハンドラ一式を組み立てる。
 func New(pool *pgxpool.Pool, clk clock.Clock, gen *persona.Generator, photos *photo.Store) *Handler {
 	return &Handler{
 		pool:     pool,
@@ -46,10 +46,10 @@ func New(pool *pgxpool.Pool, clk clock.Clock, gen *persona.Generator, photos *ph
 	}
 }
 
-// personaCard is the public shape of a persona. It deliberately excludes
-// exposure count, like/match counts and any participant or cookie identity.
-// Unset B attributes are omitted so the card can simply skip those rows.
-// Field order mirrors the card display order in the spec.
+// personaCard は Persona の公開表現。exposure 数・Like/Match 数・participant や
+// Cookie の identity は意図的に含めない。未設定の B属性は省略するので、
+// カード側はその行を出さないだけでよい。
+// フィールドの並びは仕様のカード表示順に合わせている。
 type personaCard struct {
 	ID           uuid.UUID `json:"id"`
 	Name         *string   `json:"name,omitempty"`
@@ -78,8 +78,8 @@ func newPersonaCard(p sqlc.Persona) personaCard {
 		Bio:          p.Bio,
 	}
 
-	// The version in the URL changes whenever the picture does, so the response
-	// can be cached hard without ever going stale.
+	// URL のバージョンは写真が変わるたびに変わるため、強くキャッシュしても
+	// 古い画像が残ることはない。
 	if p.PhotoUpdatedAt != nil {
 		url := fmt.Sprintf("/api/personas/%s/photo?v=%d", p.ID, p.PhotoUpdatedAt.UnixMicro())
 		card.PhotoURL = &url
@@ -87,8 +87,8 @@ func newPersonaCard(p sqlc.Persona) personaCard {
 	return card
 }
 
-// ownPersona loads today's persona for the participant, translating "missing"
-// into the domain error the API contract defines.
+// ownPersona は participant の当日 Persona を読み込み、「存在しない」を
+// API 契約が定めるドメインエラーに変換する。
 func (h *Handler) ownPersona(ctx context.Context, participantID uuid.UUID) (sqlc.Persona, error) {
 	p, err := h.q.GetPersonaByParticipant(ctx, participantID)
 	if errors.Is(err, pgx.ErrNoRows) {
@@ -100,8 +100,8 @@ func (h *Handler) ownPersona(ctx context.Context, participantID uuid.UUID) (sqlc
 	return p, nil
 }
 
-// decodeJSON reads a request body strictly: unknown fields are rejected so a
-// client cannot quietly submit system-generated attributes.
+// decodeJSON はリクエストボディを厳格に読む。未知のフィールドを拒否することで、
+// クライアントがシステム生成の属性をこっそり送ることを防ぐ。
 func decodeJSON(r *http.Request, dst any) error {
 	dec := json.NewDecoder(io.LimitReader(r.Body, maxBodyBytes))
 	dec.DisallowUnknownFields()

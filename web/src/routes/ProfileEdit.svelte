@@ -25,14 +25,14 @@
 
   async function onPickPhoto(event) {
     const file = event.target.files?.[0];
-    // Let the same file be picked again after a failure.
+    // 失敗した後でも同じファイルを選び直せるようにする。
     event.target.value = '';
     if (!file) return;
 
     photoBusy = true;
     photoError = null;
     try {
-      // Resizing here only keeps the upload small; the server re-encodes it.
+      // ここでの縮小はアップロードを小さくするためだけ。サーバが再エンコードする。
       const blob = await prepareUpload(file);
       await withDayGuard(() => uploadPhoto(blob));
     } catch (e) {
@@ -54,7 +54,7 @@
     }
   }
 
-  // The server counts characters, not bytes; [...s].length matches that.
+  // サーバはバイトではなく文字数で数える。[...s].length がその数え方に一致する。
   const lengths = $derived({
     name: [...name].length,
     hobby: [...hobby].length,

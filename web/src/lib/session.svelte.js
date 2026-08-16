@@ -1,6 +1,6 @@
-// Global game-day state: today's persona, the counters shown on Home, and the
-// day boundary. The server is authoritative for all of it; this module only
-// mirrors the last answer and tracks the clock offset for the countdown.
+// ゲーム日のグローバル状態。当日の Persona、マイページに出すカウンタ、
+// 日付境界を持つ。すべてサーバが正であり、このモジュールは直近の応答を
+// 写しているだけ。あわせてカウントダウン用の時計オフセットを保持する。
 
 import { api, ApiError, setCsrfToken } from './api.js';
 import { resetDiscover } from './discover.svelte.js';
@@ -20,18 +20,18 @@ export const session = $state({
   hasUnseenLikes: false,
   hasUnseenMatches: false,
 
-  /** Milliseconds to add to the browser clock to get server time. */
+  /** ブラウザの時計に足すとサーバ時刻になるミリ秒。 */
   clockOffsetMs: 0,
-  /** Set once the game day is over and the user must start a new life. */
+  /** ゲーム日が終わり、新しい人生を始める必要がある状態になったら true。 */
   dayEnded: false,
 });
 
-/** Server time as a millisecond timestamp, corrected for browser clock skew. */
+/** ブラウザの時計ずれを補正したサーバ時刻（ミリ秒）。 */
 export function serverNow() {
   return Date.now() + session.clockOffsetMs;
 }
 
-/** The instant the current game day ends: 00:00 JST of the following day. */
+/** 現在のゲーム日が終わる瞬間。翌日の JST 00:00。 */
 export function dayEndsAt() {
   if (!session.gameDate) return null;
   const start = new Date(`${session.gameDate}T00:00:00+09:00`).getTime();
@@ -43,8 +43,9 @@ export function remainingMs() {
 }
 
 /**
- * Milliseconds left in the game day, measured from a browser timestamp.
- * Components pass the shared ticker value so the countdown stays reactive.
+ * ブラウザのタイムスタンプを起点にしたゲーム日の残りミリ秒。
+ * 各コンポーネントは共有ティッカーの値を渡すことで、カウントダウンを
+ * リアクティブに保つ。
  */
 export function remainingMsFrom(browserNow) {
   const end = dayEndsAt();
@@ -71,14 +72,14 @@ function applyHome(home) {
   if (dayChanged) resetDiscover();
 }
 
-/** Fetches the home payload, which also guarantees today's participant exists. */
+/** ホームのペイロードを取得する。同時に当日の participant の存在も保証される。 */
 export async function refreshHome() {
   const home = await api.get('/api/home');
   applyHome(home);
   return home;
 }
 
-/** Initial load. Errors are surfaced on screen rather than thrown. */
+/** 初期ロード。エラーは投げずに画面へ表示する。 */
 export async function bootstrap() {
   session.loading = true;
   session.error = null;
@@ -91,9 +92,9 @@ export async function bootstrap() {
   }
 }
 
-/** Presses 新しい人生を始める. Idempotent server-side; never rerolls. */
+/** 「新しい人生を始める」を押す。サーバ側で冪等であり、振り直しは起きない。 */
 export async function startNewLife() {
-  // Re-read home first so a day that rolled over gets a fresh CSRF token.
+  // 先にホームを読み直す。日付が変わっていた場合に新しい CSRF トークンを得るため。
   await refreshHome();
   const persona = await api.post('/api/persona');
   session.persona = persona;
@@ -102,7 +103,7 @@ export async function startNewLife() {
   return persona;
 }
 
-/** Uploads an already-resized JPEG blob as today's picture. */
+/** 縮小済みの JPEG Blob を当日の写真としてアップロードする。 */
 export async function uploadPhoto(blob) {
   session.persona = await api.upload('/api/persona/photo', blob);
   return session.persona;
@@ -119,14 +120,14 @@ export async function updateProfile(fields) {
   return persona;
 }
 
-/** Called when the countdown reaches zero, or an API call reports DayExpired. */
+/** カウントダウンが0になったとき、または API が DayExpired を返したときに呼ぶ。 */
 export function markDayEnded() {
   session.dayEnded = true;
 }
 
 /**
- * Wraps an API call so an expired game day always lands on the same screen,
- * whichever endpoint noticed it first.
+ * API 呼び出しをラップし、どのエンドポイントが最初に気づいたかによらず、
+ * ゲーム日の終了が常に同じ画面に着地するようにする。
  */
 export async function withDayGuard(fn) {
   try {

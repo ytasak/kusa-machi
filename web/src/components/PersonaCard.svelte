@@ -3,10 +3,10 @@
   import Avatar from './Avatar.svelte';
   import { ageAndGender, height, income } from '../lib/format.js';
 
-  // One shared card for Discover, Received Likes, Sent Likes and Matches.
-  // `variant` only changes the density; the attribute order is always the one
-  // the spec fixes: name, age+gender, height, occupation, income, education,
-  // hobby, bio. Unset fields are omitted entirely.
+  // 探す / Likeされた / 送信済みLike / Match で共通のカード。
+  // variant が変えるのは情報密度だけで、属性の並びは常に仕様どおり:
+  // 名前、年齢+性別、身長、職業、年収、学歴、趣味、ひとこと。
+  // 未設定の項目は丸ごと省く。
   let { persona, badge = null, variant = 'row' } = $props();
 
   const isHero = $derived(variant === 'hero');

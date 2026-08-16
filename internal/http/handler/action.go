@@ -11,7 +11,7 @@ import (
 	"kusamachi/internal/http/response"
 )
 
-// targetRequest is the body shared by the like and pass endpoints.
+// targetRequest は Like と Pass のエンドポイントで共通のリクエストボディ。
 type targetRequest struct {
 	PersonaID string `json:"persona_id"`
 }
@@ -28,7 +28,7 @@ type passResponse struct {
 	ExcludedForToday bool `json:"excluded_for_today"`
 }
 
-// CreateLike implements POST /api/likes.
+// CreateLike は POST /api/likes を実装する。
 func (h *Handler) CreateLike(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -50,7 +50,7 @@ func (h *Handler) CreateLike(w http.ResponseWriter, r *http.Request) {
 		Matched:        result.Matched,
 	}
 	if result.Matched {
-		// The match animation needs the counterpart card immediately.
+		// Match アニメーションは相手のカードを即座に必要とする。
 		card := newPersonaCard(result.Target)
 		resp.MatchID = result.MatchID
 		resp.TargetPersona = &card
@@ -59,7 +59,7 @@ func (h *Handler) CreateLike(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, resp)
 }
 
-// CreatePass implements POST /api/passes.
+// CreatePass は POST /api/passes を実装する。
 func (h *Handler) CreatePass(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -82,7 +82,7 @@ func (h *Handler) CreatePass(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// readAction decodes the target persona id and loads the acting persona.
+// readAction は対象 Persona の id をデコードし、操作する側の Persona を読み込む。
 func (h *Handler) readAction(r *http.Request) (uuid.UUID, sqlc.Persona, error) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)

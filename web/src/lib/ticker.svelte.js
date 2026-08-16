@@ -1,5 +1,5 @@
-// A single one-second tick shared by everything that displays the countdown,
-// so the app never runs one interval per component.
+// カウントダウンを表示するすべての箇所で共有する1秒ごとのティック。
+// コンポーネントごとに interval を持たせないため。
 
 export const ticker = $state({ now: Date.now() });
 

@@ -1,5 +1,5 @@
-// The API answers with a stable error.code; the wording shown to the user is
-// decided here so the UI never surfaces a raw server message.
+// API は安定した error.code を返す。ユーザーに見せる文言はここで決めるので、
+// サーバのメッセージがそのまま画面に出ることはない。
 
 import { ApiError } from './api.js';
 

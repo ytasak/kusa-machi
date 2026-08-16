@@ -12,20 +12,20 @@ import (
 	"kusamachi/internal/http/response"
 )
 
-// discoverBatchSize is the number of cards a discover request returns.
+// discoverBatchSize は Discover が1回に返すカード数。
 const discoverBatchSize = 5
 
-// maxExcludeIDs caps the cooldown list a client may send.
+// maxExcludeIDs はクライアントが送れるクールダウン一覧の上限。
 const maxExcludeIDs = 50
 
 type discoverResponse struct {
 	Personas []personaCard `json:"personas"`
 }
 
-// Discover implements GET /api/discover.
+// Discover は GET /api/discover を実装する。
 //
-// Returning a batch must not touch exposure_count: exposure only counts
-// profiles the user actually evaluated with a like or a pass.
+// バッチを返すだけでは exposure_count に触れない。exposure が数えるのは
+// Like か Pass で実際に評価されたプロフィールだけ。
 func (h *Handler) Discover(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -61,7 +61,7 @@ func (h *Handler) Discover(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, discoverResponse{Personas: cards})
 }
 
-// parseExcludeIDs reads the frontend's local pass-cooldown list.
+// parseExcludeIDs はフロントエンドが持つローカルな Pass クールダウン一覧を読む。
 func parseExcludeIDs(raw string) ([]uuid.UUID, error) {
 	if raw == "" {
 		return []uuid.UUID{}, nil

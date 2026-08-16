@@ -16,10 +16,10 @@ import (
 	"kusamachi/internal/photo"
 )
 
-// UploadPhoto implements POST /api/persona/photo.
+// UploadPhoto は POST /api/persona/photo を実装する。
 //
-// The body is the raw image; the client resizes it first, and the server
-// re-encodes whatever arrives.
+// ボディは生の画像。クライアントが先に縮小し、サーバは届いたものを
+// 必ず再エンコードする。
 func (h *Handler) UploadPhoto(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -54,7 +54,7 @@ func (h *Handler) UploadPhoto(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, newPersonaCard(updated))
 }
 
-// DeletePhoto implements DELETE /api/persona/photo, so a picture can be undone.
+// DeletePhoto は DELETE /api/persona/photo を実装し、写真を取り消せるようにする。
 func (h *Handler) DeletePhoto(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -82,7 +82,7 @@ func (h *Handler) DeletePhoto(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, newPersonaCard(updated))
 }
 
-// GetPhoto implements GET /api/personas/{personaID}/photo.
+// GetPhoto は GET /api/personas/{personaID}/photo を実装する。
 func (h *Handler) GetPhoto(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -93,7 +93,7 @@ func (h *Handler) GetPhoto(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Only today's personas are visible, exactly like every other read.
+	// 見えるのは当日の Persona だけ。他の読み取りと同じ扱い。
 	target, err := h.q.GetActivePersona(ctx, sqlc.GetActivePersonaParams{
 		PersonaID: personaID,
 		GameDate:  s.GameDate,
@@ -119,9 +119,9 @@ func (h *Handler) GetPhoto(w http.ResponseWriter, r *http.Request) {
 	defer file.Close()
 
 	w.Header().Set("Content-Type", photo.ContentType)
-	// The URL carries a version, so the bytes behind it never change.
+	// URL にバージョンが入っているため、その URL の中身が変わることはない。
 	w.Header().Set("Cache-Control", "private, max-age=86400")
-	// Belt and braces: never let a browser sniff this as anything but an image.
+	// 念のため、ブラウザが画像以外として解釈することを絶対に許さない。
 	w.Header().Set("X-Content-Type-Options", "nosniff")
 
 	http.ServeContent(w, r, strconv.FormatInt(target.PhotoUpdatedAt.Unix(), 10)+".jpg", *target.PhotoUpdatedAt, file)

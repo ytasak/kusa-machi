@@ -2,7 +2,7 @@
   import styles from './MatchAnimation.module.css';
   import PersonaCard from './PersonaCard.svelte';
 
-  // Shows both personas together, as the spec's match animation requires.
+  // 仕様の Match アニメーションが求めるとおり、両者の Persona を並べて見せる。
   let { own, counterpart, onclose } = $props();
 </script>
 

@@ -1,10 +1,10 @@
-// Package photo stores profile pictures as files on disk.
+// Package photo はプロフィール写真をディスク上のファイルとして保存する。
 //
-// Everything a client sends is decoded and re-encoded before it is stored.
-// That single step is what makes the feature safe enough to ship: it drops EXIF
-// (an anonymous app must not publish someone's GPS coordinates), discards any
-// payload smuggled alongside the pixels, and normalises size and format.
-// Client-side resizing only saves bandwidth; it is never trusted.
+// クライアントから届いたものは、保存前に必ずデコードして再エンコードする。
+// この一手間がこの機能を出荷可能な安全性にしている。EXIF が落ち（匿名アプリが
+// 誰かの GPS 座標を公開してはならない）、画素に紛れ込ませたペイロードが捨てられ、
+// サイズと形式が正規化される。クライアント側のリサイズは通信量を減らすだけで、
+// 信用の対象ではない。
 package photo
 
 import (
@@ -13,7 +13,7 @@ import (
 	"fmt"
 	"image"
 	"image/jpeg"
-	_ "image/png" // register PNG for decoding
+	_ "image/png" // デコード用に PNG を登録する
 	"io"
 	"os"
 	"path/filepath"
@@ -27,29 +27,29 @@ import (
 )
 
 const (
-	// MaxUploadBytes caps the request body. The client resizes first, so a real
-	// upload is a couple of hundred kilobytes.
+	// MaxUploadBytes はリクエストボディの上限。クライアントが先に縮小するため、
+	// 実際のアップロードは数百キロバイト程度になる。
 	MaxUploadBytes = 8 << 20
 
-	// MaxPixels rejects decompression bombs before the image is decoded.
+	// MaxPixels は展開爆弾をデコード前に弾くための画素数上限。
 	MaxPixels = 40_000_000
 
-	// MaxEdge is the stored long edge.
+	// MaxEdge は保存する画像の長辺。
 	MaxEdge = 1024
 
 	jpegQuality = 85
 
-	// ContentType is what is stored and served, whatever came in.
+	// ContentType は入力が何であれ、保存・配信する形式。
 	ContentType = "image/jpeg"
 )
 
-// Store writes one file per persona, in a directory per game date so the daily
-// cleanup can drop a whole day by removing a directory.
+// Store は Persona ごとに1ファイルを書き出す。ゲーム日ごとのディレクトリに
+// 分けてあるため、日次クリーンアップはディレクトリ削除だけで1日分を消せる。
 type Store struct {
 	dir string
 }
 
-// NewStore creates the root directory if it does not exist.
+// NewStore はルートディレクトリが無ければ作成する。
 func NewStore(dir string) (*Store, error) {
 	if err := os.MkdirAll(dir, 0o750); err != nil {
 		return nil, fmt.Errorf("create photo dir: %w", err)
@@ -65,7 +65,7 @@ func (s *Store) path(gameDate time.Time, personaID uuid.UUID) string {
 	return filepath.Join(s.dayDir(gameDate), personaID.String()+".jpg")
 }
 
-// Save normalises the uploaded image and writes it, replacing any previous one.
+// Save はアップロードされた画像を正規化して書き込む。既存の写真は置き換わる。
 func (s *Store) Save(gameDate time.Time, personaID uuid.UUID, r io.Reader) error {
 	encoded, err := normalize(r)
 	if err != nil {
@@ -77,8 +77,7 @@ func (s *Store) Save(gameDate time.Time, personaID uuid.UUID, r io.Reader) error
 		return fmt.Errorf("create photo day dir: %w", err)
 	}
 
-	// Write to a temporary file first so a reader never sees a half-written
-	// picture.
+	// 先に一時ファイルへ書く。読み手が書きかけの画像を目にしないようにするため。
 	tmp, err := os.CreateTemp(dir, ".upload-*")
 	if err != nil {
 		return fmt.Errorf("create temp photo: %w", err)
@@ -101,11 +100,11 @@ func (s *Store) Save(gameDate time.Time, personaID uuid.UUID, r io.Reader) error
 	return nil
 }
 
-// Open returns the stored picture. The caller closes the file.
+// Open は保存済みの写真を返す。ファイルのクローズは呼び出し側の責任。
 func (s *Store) Open(gameDate time.Time, personaID uuid.UUID) (*os.File, error) {
 	f, err := os.Open(s.path(gameDate, personaID))
 	if errors.Is(err, os.ErrNotExist) {
-		return nil, apperr.New(apperr.CodeTargetPersonaUnavailable, "no photo")
+		return nil, apperr.New(apperr.CodeTargetPersonaUnavailable, "写真がありません")
 	}
 	if err != nil {
 		return nil, fmt.Errorf("open photo: %w", err)
@@ -113,7 +112,7 @@ func (s *Store) Open(gameDate time.Time, personaID uuid.UUID) (*os.File, error) 
 	return f, nil
 }
 
-// Delete removes the picture. Missing is not an error.
+// Delete は写真を削除する。存在しなくてもエラーにしない。
 func (s *Store) Delete(gameDate time.Time, personaID uuid.UUID) error {
 	if err := os.Remove(s.path(gameDate, personaID)); err != nil && !errors.Is(err, os.ErrNotExist) {
 		return fmt.Errorf("delete photo: %w", err)
@@ -121,8 +120,8 @@ func (s *Store) Delete(gameDate time.Time, personaID uuid.UUID) error {
 	return nil
 }
 
-// DeleteBefore removes every game-date directory older than today and reports
-// how many days it dropped. Idempotent, like the rest of the cleanup.
+// DeleteBefore は今日より古いゲーム日のディレクトリをすべて削除し、消した
+// 日数を返す。クリーンアップの他の処理と同じく冪等。
 func (s *Store) DeleteBefore(today time.Time) (int, error) {
 	entries, err := os.ReadDir(s.dir)
 	if err != nil {
@@ -132,7 +131,7 @@ func (s *Store) DeleteBefore(today time.Time) (int, error) {
 	cutoff := clock.FormatGameDate(today)
 	removed := 0
 	for _, entry := range entries {
-		// Directory names are YYYY-MM-DD, so a string compare is a date compare.
+		// ディレクトリ名は YYYY-MM-DD なので、文字列比較がそのまま日付比較になる。
 		if !entry.IsDir() || entry.Name() >= cutoff {
 			continue
 		}
@@ -144,7 +143,7 @@ func (s *Store) DeleteBefore(today time.Time) (int, error) {
 	return removed, nil
 }
 
-// normalize decodes the upload and re-encodes it as a bounded JPEG.
+// normalize はアップロードをデコードし、上限内の JPEG として再エンコードする。
 func normalize(r io.Reader) ([]byte, error) {
 	raw, err := io.ReadAll(io.LimitReader(r, MaxUploadBytes+1))
 	if err != nil {
@@ -157,8 +156,7 @@ func normalize(r io.Reader) ([]byte, error) {
 		return nil, invalidImage("画像が空です")
 	}
 
-	// Read the header only, so a decompression bomb is rejected before it is
-	// expanded into memory.
+	// まずヘッダだけを読む。展開爆弾をメモリ上に展開する前に弾くため。
 	cfg, format, err := image.DecodeConfig(bytes.NewReader(raw))
 	if err != nil {
 		return nil, invalidImage("対応していない画像形式です")
@@ -182,8 +180,8 @@ func normalize(r io.Reader) ([]byte, error) {
 	return buf.Bytes(), nil
 }
 
-// fitWithin scales the image down so its long edge is at most edge pixels.
-// Images already small enough are returned untouched.
+// fitWithin は長辺が edge ピクセル以下になるよう画像を縮小する。
+// すでに十分小さい画像はそのまま返す。
 func fitWithin(src image.Image, edge int) image.Image {
 	b := src.Bounds()
 	w, h := b.Dx(), b.Dy()

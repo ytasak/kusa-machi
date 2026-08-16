@@ -1,6 +1,6 @@
--- Profile pictures.
+-- プロフィール写真。
 --
--- Only the "a photo exists, and when it changed" marker lives in the database.
--- The bytes are files under PHOTO_DIR, laid out one directory per game date so
--- the daily cleanup can drop yesterday's pictures by removing a directory.
+-- DBに持つのは「写真があるか、いつ更新されたか」の目印だけ。
+-- 実体は PHOTO_DIR 配下のファイルで、game_date ごとのディレクトリに置く。
+-- 日次クリーンアップがディレクトリごと消せば、写真も他のデータと一緒に消える。
 ALTER TABLE personas ADD COLUMN photo_updated_at TIMESTAMPTZ NULL;

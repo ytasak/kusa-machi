@@ -1,7 +1,7 @@
-// Screen navigation.
+// 画面遷移。
 //
-// The four tab screens are always one tap away; 送信済みLike and
-// プロフィール編集 are pushed screens that live under マイページ.
+// 4つのタブ画面へはいつでも1タップで移動できる。送信済みLike と
+// プロフィール編集は マイページ の配下にプッシュされる画面。
 
 export const SCREENS = {
   discover: 'discover',
@@ -12,7 +12,7 @@ export const SCREENS = {
   profile: 'profile',
 };
 
-/** The tab bar, in the spec's navigation priority order. */
+/** タブバー。仕様のナビゲーション優先順で並べる。 */
 export const TABS = [
   { screen: SCREENS.discover, label: '探す', icon: 'search' },
   { screen: SCREENS.receivedLikes, label: 'Likeされた', icon: 'heart' },
@@ -20,7 +20,7 @@ export const TABS = [
   { screen: SCREENS.mypage, label: 'マイページ', icon: 'person' },
 ];
 
-/** Pushed screens map back to the tab they belong to. */
+/** プッシュされた画面は、所属するタブに対応付ける。 */
 const PARENT_TAB = {
   [SCREENS.sentLikes]: SCREENS.mypage,
   [SCREENS.profile]: SCREENS.mypage,
@@ -36,7 +36,7 @@ export function goMyPage() {
   nav.screen = SCREENS.mypage;
 }
 
-/** Which tab should look selected for the current screen. */
+/** 現在の画面に対して、どのタブを選択状態に見せるか。 */
 export function activeTab(screen) {
   return PARENT_TAB[screen] ?? screen;
 }

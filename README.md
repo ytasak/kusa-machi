@@ -23,10 +23,16 @@ cmd/server/          エントリポイント（serve / migrate up / migrate dow
 internal/clock/      JST ゲーム日付の抽象化（テスト用 Fake クロック込み）
 internal/config/     環境変数
 internal/apperr/     ドメインエラーコードと HTTP ステータスの対応
+internal/participant/ Cookie による匿名 identity と日次 Participant
+internal/persona/    Persona 生成器とプロフィール入力の検証
+internal/matching/   Like / Pass / Match のトランザクションと市場ルール
+internal/photo/      プロフィール写真の正規化とファイル保存
+internal/cleanup/    前日データの物理削除ジョブ
 internal/db/         接続プール・マイグレーション実行
 internal/db/query/   sqlc の入力 SQL
 internal/db/sqlc/    sqlc 生成コード（手で編集しない）
 internal/http/       chi ルータ・ハンドラ・ミドルウェア
+internal/apptest/    実 DB と実ルータを使う結合テストの土台
 migrations/          golang-migrate の SQL（embed される）
 web/                 Svelte + Vite
 ```
@@ -141,6 +147,7 @@ make test-all    # 結合テストも実行（make db-up が必要）
 - 日付境界（前日Personaは行動不可・前日データが当日に出ない）
 - CSRF（不正トークンは拒否、前日トークンは DayExpired）
 - プロフィール入力制約（文字数・改行・URL・A属性の拒否・HTMLはテキスト扱い）
+- プロフィール写真（非画像の拒否・展開爆弾の拒否・EXIF除去・寸法上限・日次削除）
 
 ## SQL を変更したとき
 

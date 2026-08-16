@@ -1,6 +1,6 @@
 -- name: UpsertParticipant :one
--- Race-safe "ensure today's participant". The no-op DO UPDATE makes the
--- existing row visible to RETURNING when a concurrent request won the insert.
+-- 競合に強い「当日の Participant を保証する」処理。DO UPDATE を無意味な代入に
+-- しておくと、同時実行で INSERT に負けた側でも既存行が RETURNING で返る。
 INSERT INTO participants (id, cookie_token, game_date, csrf_token)
 VALUES ($1, $2, $3, $4)
 ON CONFLICT (cookie_token, game_date)

@@ -95,7 +95,7 @@ func TestProfileRejections(t *testing.T) {
 }
 
 func TestProfileLengthIsCountedInRunes(t *testing.T) {
-	// 20 multi-byte characters are 60 bytes but still exactly at the limit.
+	// マルチバイト20文字は60バイトだが、文字数では上限ちょうど。
 	in := ProfileInput{Name: ptr(strings.Repeat("あ", 20))}
 	if _, err := in.Validate(); err != nil {
 		t.Fatalf("20 runes should be accepted: %v", err)

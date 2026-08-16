@@ -3,19 +3,19 @@
 *.test
 *.out
 
-# Frontend
+# フロントエンド
 node_modules/
 web/dist/
 web/.vite/
 
-# Env / local config
+# 環境変数・ローカル設定
 .env
 .env.local
 
-# Editor / OS
+# エディタ・OS
 .DS_Store
 .idea/
 .vscode/
 
-# Local photo uploads
+# ローカルにアップロードされた写真
 /data/

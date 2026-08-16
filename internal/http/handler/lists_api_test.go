@@ -58,7 +58,7 @@ func TestOpeningReceivedLikesClearsTheBadge(t *testing.T) {
 		t.Fatalf("received_like_count = %d, want 1", home.ReceivedLikeCount)
 	}
 
-	// A new like after the screen was opened raises the badge again.
+	// 画面を開いた後に来た新しい Like は、再びバッジを立てる。
 	carol, _ := app.NewStartedClient(t)
 	carol.MustLike(t, aliceCard.ID)
 	if home := alice.Home(t); !home.HasUnseenLikes {
@@ -145,7 +145,7 @@ func TestCleanupDeletesPreviousDaysOnly(t *testing.T) {
 	alice.MustLike(t, bobCard.ID)
 	bob.MustLike(t, aliceCard.ID)
 
-	// A third participant leaves a pass row behind, so every table has data.
+	// 3人目が pass の行を残すことで、すべてのテーブルにデータがある状態にする。
 	carol, _ := app.NewStartedClient(t)
 	carol.MustPass(t, bobCard.ID)
 
@@ -175,7 +175,7 @@ func TestCleanupDeletesPreviousDaysOnly(t *testing.T) {
 		}
 	}
 
-	// Running again on an already clean database must be a no-op.
+	// すでに空のデータベースに再実行しても何も起きてはいけない。
 	deleted, err = job.RunOnce(t.Context())
 	if err != nil {
 		t.Fatalf("second cleanup: %v", err)

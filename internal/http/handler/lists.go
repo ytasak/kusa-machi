@@ -12,8 +12,8 @@ type personaListResponse struct {
 	Personas []personaCard `json:"personas"`
 }
 
-// sentLikeCard is the public card plus the MATCH badge flag. The embedded
-// struct is inlined by encoding/json, so the shape stays a plain persona card.
+// sentLikeCard は公開カードに MATCH バッジ用のフラグを足したもの。埋め込み構造体は
+// encoding/json によって展開されるので、形はただの Persona カードのまま。
 type sentLikeCard struct {
 	personaCard
 	Matched bool `json:"matched"`
@@ -23,10 +23,10 @@ type sentLikeListResponse struct {
 	Personas []sentLikeCard `json:"personas"`
 }
 
-// ReceivedLikes implements GET /api/likes/received.
+// ReceivedLikes は GET /api/likes/received を実装する。
 //
-// Opening the screen clears the "新しいLikeがあります" badge. This is the one
-// state change the spec allows a GET to make.
+// 画面を開くと「新しいLikeがあります」バッジが消える。仕様が GET に許している
+// 唯一の状態変更。
 func (h *Handler) ReceivedLikes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -51,7 +51,7 @@ func (h *Handler) ReceivedLikes(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, personaListResponse{Personas: toCards(rows)})
 }
 
-// SentLikes implements GET /api/likes/sent.
+// SentLikes は GET /api/likes/sent を実装する。
 func (h *Handler) SentLikes(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -90,9 +90,9 @@ func (h *Handler) SentLikes(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, sentLikeListResponse{Personas: cards})
 }
 
-// Matches implements GET /api/matches.
+// Matches は GET /api/matches を実装する。
 //
-// Opening the screen clears the "新しいMatchがあります！" badge.
+// 画面を開くと「新しいMatchがあります！」バッジが消える。
 func (h *Handler) Matches(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)

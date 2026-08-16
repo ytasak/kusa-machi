@@ -26,8 +26,8 @@ type homeResponse struct {
 	CSRFToken         string       `json:"csrf_token"`
 }
 
-// Home returns the whole home screen state. The session middleware has already
-// guaranteed that today's participant exists by the time this runs.
+// Home はホーム画面の状態を丸ごと返す。この処理が動く時点で、セッション
+// ミドルウェアが当日の participant の存在をすでに保証している。
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -41,7 +41,7 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 
 	p, err := h.ownPersona(ctx, s.Participant.ID)
 	if errors.Is(err, apperr.PersonaNotGenerated) {
-		// A day with no persona yet is a normal state, not an error.
+		// Persona がまだ無い日は正常な状態であって、エラーではない。
 		response.JSON(w, http.StatusOK, resp)
 		return
 	}

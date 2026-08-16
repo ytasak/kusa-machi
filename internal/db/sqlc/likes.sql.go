@@ -27,8 +27,8 @@ const countLikesSent = `-- name: CountLikesSent :one
 SELECT COUNT(*) FROM likes WHERE from_persona_id = $1
 `
 
-// Today's spent like budget. Like rows always reference today's personas
-// because yesterday's persona can never act again, so no date filter is needed.
+// 当日消費した Like 数。前日の Persona は二度と行動できないため likes の行は
+// 常に当日の Persona を指す。したがって日付での絞り込みは不要。
 func (q *Queries) CountLikesSent(ctx context.Context, fromPersonaID uuid.UUID) (int64, error) {
 	row := q.db.QueryRow(ctx, countLikesSent, fromPersonaID)
 	var count int64

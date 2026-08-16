@@ -32,7 +32,7 @@ type GetActivePersonaParams struct {
 	GameDate  time.Time
 }
 
-// A persona is only a valid interaction target on its own game day.
+// Persona が操作対象として有効なのは、その Persona 自身のゲーム日のみ。
 func (q *Queries) GetActivePersona(ctx context.Context, arg GetActivePersonaParams) (Persona, error) {
 	row := q.db.QueryRow(ctx, getActivePersona, arg.PersonaID, arg.GameDate)
 	var i Persona
@@ -111,8 +111,8 @@ const incrementExposure = `-- name: IncrementExposure :exec
 UPDATE personas SET exposure_count = exposure_count + 1 WHERE id = $1
 `
 
-// Exposure counts profiles the user actually evaluated, so this runs only after
-// a successful like or pass, never when a discover batch is returned.
+// exposure は「実際に評価されたプロフィール」を数える。よって Like か Pass が
+// 成功した後だけ実行し、Discover でバッチを返したときには実行しない。
 func (q *Queries) IncrementExposure(ctx context.Context, id uuid.UUID) error {
 	_, err := q.db.Exec(ctx, incrementExposure, id)
 	return err
@@ -138,8 +138,8 @@ type InsertPersonaParams struct {
 	AnnualIncome  int32
 }
 
-// Idempotent persona generation: a participant may only ever have one persona,
-// so a losing concurrent request gets the already-stored row back.
+// 冪等な Persona 生成。1 Participant につき Persona は1つだけなので、
+// 同時実行で負けた側には保存済みの行がそのまま返る。
 func (q *Queries) InsertPersona(ctx context.Context, arg InsertPersonaParams) (Persona, error) {
 	row := q.db.QueryRow(ctx, insertPersona,
 		arg.ID,
@@ -175,9 +175,9 @@ const lockPersona = `-- name: LockPersona :one
 SELECT id FROM personas WHERE id = $1 FOR UPDATE
 `
 
-// Serialises like/pass transactions. Callers always lock the personas of a pair
-// in normalised (low, high) order, which both keeps the like budget correct and
-// makes mutual-like detection deterministic without any deadlock risk.
+// Like / Pass トランザクションを直列化する。呼び出し側は必ずペアを正規化した
+// (low, high) の順でロックする。これにより Like 予算の正しさと相互Like検出の
+// 確実性を同時に満たし、かつデッドロックが起きない。
 func (q *Queries) LockPersona(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
 	row := q.db.QueryRow(ctx, lockPersona, id)
 	var id_2 uuid.UUID

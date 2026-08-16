@@ -13,8 +13,8 @@ func TestSetTokenUsesTheIframeSafeCookieAttributes(t *testing.T) {
 	rec := httptest.NewRecorder()
 	token := uuid.New()
 
-	// Production configuration: the app is embedded in the kusa iframe, which
-	// requires SameSite=None and therefore Secure.
+	// 本番の設定。kusa の iframe に埋め込むため SameSite=None が必要で、
+	// それに伴い Secure も必要になる。
 	SetToken(rec, CookieConfig{Secure: true, SameSite: http.SameSiteNoneMode}, token)
 
 	header := rec.Header().Get("Set-Cookie")
@@ -28,7 +28,7 @@ func TestSetTokenUsesTheIframeSafeCookieAttributes(t *testing.T) {
 		"HttpOnly",
 		"Secure",
 		"SameSite=None",
-		"Max-Age=2592000", // 30 days
+		"Max-Age=2592000", // 30日
 	} {
 		if !strings.Contains(header, want) {
 			t.Errorf("Set-Cookie %q is missing %q", header, want)
@@ -48,10 +48,10 @@ func TestReadToken(t *testing.T) {
 		cookie *http.Cookie
 		wantOK bool
 	}{
-		{"no cookie", nil, false},
-		{"valid token", &http.Cookie{Name: CookieName, Value: token.String()}, true},
-		{"malformed token", &http.Cookie{Name: CookieName, Value: "not-a-uuid"}, false},
-		{"other cookie", &http.Cookie{Name: "unrelated", Value: token.String()}, false},
+		{"Cookieなし", nil, false},
+		{"正しいトークン", &http.Cookie{Name: CookieName, Value: token.String()}, true},
+		{"形式が不正なトークン", &http.Cookie{Name: CookieName, Value: "not-a-uuid"}, false},
+		{"別名のCookie", &http.Cookie{Name: "unrelated", Value: token.String()}, false},
 	}
 
 	for _, tc := range tests {
@@ -79,7 +79,7 @@ func TestCSRFTokensAreOpaqueAndUnique(t *testing.T) {
 		if err != nil {
 			t.Fatalf("generate: %v", err)
 		}
-		// 32 random bytes as unpadded base64url.
+		// 32バイトの乱数をパディングなし base64url にしたもの。
 		if len(token) != 43 {
 			t.Fatalf("token %q has length %d, want 43", token, len(token))
 		}

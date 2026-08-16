@@ -11,11 +11,11 @@ import (
 	"kusamachi/internal/persona"
 )
 
-// GeneratePersona implements POST /api/persona.
+// GeneratePersona は POST /api/persona を実装する。
 //
-// Idempotent by construction: an existing persona is returned untouched, and
-// the unique index on personas.participant_id turns a lost race into the same
-// answer rather than a second roll. A persona is never rerolled within a day.
+// 構造的に冪等。既存の Persona はそのまま返し、personas.participant_id の
+// 一意インデックスにより、競合に負けた場合も2回目の抽選ではなく同じ答えになる。
+// 同じ日のうちに Persona が振り直されることはない。
 func (h *Handler) GeneratePersona(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -44,7 +44,7 @@ func (h *Handler) GeneratePersona(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, newPersonaCard(p))
 }
 
-// MyPersona implements GET /api/persona/me.
+// MyPersona は GET /api/persona/me を実装する。
 func (h *Handler) MyPersona(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -57,10 +57,10 @@ func (h *Handler) MyPersona(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, newPersonaCard(p))
 }
 
-// UpdateProfile implements PATCH /api/persona/profile.
+// UpdateProfile は PATCH /api/persona/profile を実装する。
 //
-// Only the B attributes are accepted; a payload carrying a system-generated
-// attribute is rejected outright rather than silently ignored.
+// 受け付けるのは B属性のみ。システム生成の属性を含むペイロードは黙って
+// 無視するのではなく、はっきり拒否する。
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
