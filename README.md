@@ -96,12 +96,47 @@ docker run --rm -p 8080:8080 \
 `COOKIE_SECURE=false` / `COOKIE_SAMESITE=lax` は **ローカル開発専用**。
 `make run` はこの 2 つを自動で付ける。
 
+## API
+
+すべて `/api` 配下、フロントエンドと同一 Origin。
+更新系は `X-CSRF-Token` ヘッダ必須（トークンは `GET /api/home` が返す）。
+
+| メソッド | パス | 用途 |
+|---|---|---|
+| GET | `/api/home` | 当日の Participant を保証し、ホーム画面の状態を返す |
+| POST | `/api/persona` | 当日の Persona を生成（冪等・同日再生成なし） |
+| GET | `/api/persona/me` | 自分の Persona |
+| PATCH | `/api/persona/profile` | name / hobby / bio のみ更新 |
+| GET | `/api/discover` | 最大5件の候補（`?exclude=id1,id2`） |
+| POST | `/api/likes` | Like（10件/日、相互でMatch生成） |
+| POST | `/api/passes` | Pass（同一相手3回で当日除外） |
+| GET | `/api/likes/received` | Likeされた一覧（開くと既読化） |
+| GET | `/api/likes/sent` | 送信済みLike一覧（`matched` フラグ付き） |
+| GET | `/api/matches` | Match相手一覧（開くと既読化） |
+
+エラーは `{"error":{"code":"LikeLimitExceeded","message":"..."}}` 形式。
+フロントは `error.code` で分岐する。
+
 ## テスト
 
 ```bash
 make test        # DB 不要のユニットテストのみ
 make test-all    # 結合テストも実行（make db-up が必要）
 ```
+
+結合テストは `TEST_DATABASE_URL` が設定されているときだけ実行され、
+毎回テーブルを TRUNCATE してから実 DB と実ルータに対して動作する。
+ゲーム日付は Fake クロックで進めるため、日付境界も実時間を待たずに検証できる。
+
+重点的にカバーしているもの:
+
+- Persona生成の全制約（年齢・学歴・職業・年収レンジ・10万円刻み）
+- Like 10件上限 / 11件目の失敗 / 並行Like / 重複Like（二重消費なし）
+- 相互Likeで Match が1件だけできること（同時実行含む）
+- Pass 1→2→3 と当日除外、exposure_count の加算タイミング
+- 日付境界（前日Personaは行動不可・前日データが当日に出ない）
+- CSRF（不正トークンは拒否、前日トークンは DayExpired）
+- プロフィール入力制約（文字数・改行・URL・A属性の拒否・HTMLはテキスト扱い）
 
 ## SQL を変更したとき
 
