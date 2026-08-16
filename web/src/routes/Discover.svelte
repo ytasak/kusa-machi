@@ -6,13 +6,12 @@
   import PersonaCard from '../components/PersonaCard.svelte';
   import MatchAnimation from '../components/MatchAnimation.svelte';
   import { api, ApiError } from '../lib/api.js';
-  import { session, withDayGuard } from '../lib/session.svelte.js';
-  import { discover, currentCard, consumeCurrent, dropFromQueue, ensureCards } from '../lib/discover.svelte.js';
+  import { session, withDayGuard, LIKE_BUDGET } from '../lib/session.svelte.js';
+  import { discover, currentCard, consumeCurrent, ensureCards } from '../lib/discover.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
   const LIKE_FLASH_MS = 450;
 
-  let busy = $state(false);
   let message = $state(null);
   let likeFlash = $state(false);
   let matchedPersona = $state(null);
@@ -22,68 +21,88 @@
 
   onMount(ensureCards);
 
-  // 「このカードはもう古い」という意味でしかないエラー。捨てて次へ進む。
+  // 「このカードはもう古い」という意味でしかないエラー。カードはすでに
+  // 送り出しているので、ユーザーに見せるべきことは何も無い。
   const STALE_CODES = new Set(['AlreadyLiked', 'TargetPersonaUnavailable', 'PassLimitReached']);
 
-  function handleActionError(e, personaId) {
-    if (!(e instanceof ApiError)) {
-      message = errorMessage(e);
-      return;
-    }
-    if (STALE_CODES.has(e.code)) {
-      dropFromQueue(personaId);
-      return;
-    }
-    if (e.code === 'LikeLimitExceeded') {
-      session.remainingLikes = 0;
-    }
-    message = errorMessage(e);
+  let flashTimer = null;
+
+  function flashLike() {
+    likeFlash = true;
+    clearTimeout(flashTimer);
+    flashTimer = setTimeout(() => {
+      likeFlash = false;
+    }, LIKE_FLASH_MS);
   }
 
+  /**
+   * Like と Pass は応答を待たずに画面を進める。
+   *
+   * サーバは常に正であり、成功時のレスポンスで残数を確定させる。往復のあいだ
+   * 指を止めさせないためにこうしている。1往復ぶん（本番で約80ms）の待ちが
+   * 体感から消える。
+   */
   async function onLike() {
-    if (!card || busy || outOfLikes) return;
     const target = card;
+    if (!target || outOfLikes) return;
 
-    busy = true;
     message = null;
+
+    // 楽観更新。ここで残数を減らすので、連打しても上限を超えて送れない。
+    session.remainingLikes -= 1;
+    consumeCurrent();
+    flashLike();
+    ensureCards();
+
     try {
       const res = await withDayGuard(() => api.post('/api/likes', { persona_id: target.id }));
+
+      // サーバの値で確定させ、楽観更新のズレをここで吸収する。
       session.remainingLikes = res.remaining_likes;
-      consumeCurrent();
 
       if (res.matched) {
         session.matchCount += 1;
+        // Match のほうが強い演出なので、LIKE のフラッシュは引っ込める。
+        clearTimeout(flashTimer);
+        likeFlash = false;
         matchedPersona = res.target_persona;
-      } else {
-        likeFlash = true;
-        setTimeout(() => {
-          likeFlash = false;
-        }, LIKE_FLASH_MS);
       }
-      await ensureCards();
     } catch (e) {
-      handleActionError(e, target.id);
-    } finally {
-      busy = false;
+      revertLike(e);
+    }
+  }
+
+  // 失敗した Like は消費されていないので残数を戻す。ズレても次の成功時に
+  // サーバの値で上書きされる。
+  function revertLike(e) {
+    if (e instanceof ApiError && e.code === 'LikeLimitExceeded') {
+      session.remainingLikes = 0;
+    } else {
+      session.remainingLikes = Math.min(LIKE_BUDGET, session.remainingLikes + 1);
+    }
+
+    if (!(e instanceof ApiError) || !STALE_CODES.has(e.code)) {
+      message = errorMessage(e);
     }
   }
 
   async function onPass() {
-    if (!card || busy) return;
     const target = card;
+    if (!target) return;
 
-    busy = true;
     message = null;
+
+    // Pass は消費する予算が無いので、送り出したら結果を待つ必要がない。
+    // 3回目でサーバが当日除外にするため、ローカルのクールダウンは常に付けてよい。
+    consumeCurrent({ cooldownId: target.id });
+    ensureCards();
+
     try {
-      const res = await withDayGuard(() => api.post('/api/passes', { persona_id: target.id }));
-      // サーバがその日の表示対象から外した時点で、ローカルのクールダウンが
-      // やることは何もない。
-      consumeCurrent({ cooldownId: res.excluded_for_today ? null : target.id });
-      await ensureCards();
+      await withDayGuard(() => api.post('/api/passes', { persona_id: target.id }));
     } catch (e) {
-      handleActionError(e, target.id);
-    } finally {
-      busy = false;
+      if (!(e instanceof ApiError) || !STALE_CODES.has(e.code)) {
+        message = errorMessage(e);
+      }
     }
   }
 </script>
@@ -110,18 +129,13 @@
     </div>
 
     <div class={ui.actions}>
-      <button
-        class="{ui.circle} {ui.circlePass}"
-        onclick={onPass}
-        disabled={busy}
-        aria-label="パス"
-      >
+      <button class="{ui.circle} {ui.circlePass}" onclick={onPass} aria-label="パス">
         <Icon name="close" size={26} />
       </button>
       <button
         class="{ui.circle} {ui.circleLike}"
         onclick={onLike}
-        disabled={busy || outOfLikes}
+        disabled={outOfLikes}
         aria-label="Like"
       >
         <Icon name="heart" size={30} filled />

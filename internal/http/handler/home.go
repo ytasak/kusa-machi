@@ -5,7 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"kusamachi/internal/apperr"
+	"github.com/jackc/pgx/v5"
+
 	"kusamachi/internal/clock"
 	"kusamachi/internal/db/sqlc"
 	"kusamachi/internal/http/middleware"
@@ -28,6 +29,9 @@ type homeResponse struct {
 
 // Home はホーム画面の状態を丸ごと返す。この処理が動く時点で、セッション
 // ミドルウェアが当日の participant の存在をすでに保証している。
+//
+// Persona とカウンタは1本のクエリでまとめて取る。画面を開くたびに呼ばれる
+// エンドポイントなので、往復回数がそのまま体感速度になる。
 func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -39,8 +43,12 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 		CSRFToken:      s.Participant.CsrfToken,
 	}
 
-	p, err := h.ownPersona(ctx, s.Participant.ID)
-	if errors.Is(err, apperr.PersonaNotGenerated) {
+	state, err := h.q.GetHomeState(ctx, sqlc.GetHomeStateParams{
+		ParticipantID:     s.Participant.ID,
+		LikesLastSeenAt:   s.Participant.LikesLastSeenAt,
+		MatchesLastSeenAt: s.Participant.MatchesLastSeenAt,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
 		// Persona がまだ無い日は正常な状態であって、エラーではない。
 		response.JSON(w, http.StatusOK, resp)
 		return
@@ -50,39 +58,14 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	card := newPersonaCard(p)
+	card := newPersonaCard(state.Persona)
 	resp.PersonaGenerated = true
 	resp.Persona = &card
-
-	sent, err := h.q.CountLikesSent(ctx, p.ID)
-	if err != nil {
-		response.Error(w, err)
-		return
-	}
-	resp.RemainingLikes = matching.RemainingLikes(sent)
-
-	if resp.ReceivedLikeCount, err = h.q.CountLikesReceived(ctx, p.ID); err != nil {
-		response.Error(w, err)
-		return
-	}
-	if resp.MatchCount, err = h.q.CountMatches(ctx, p.ID); err != nil {
-		response.Error(w, err)
-		return
-	}
-	if resp.HasUnseenLikes, err = h.q.HasLikesReceivedSince(ctx, sqlc.HasLikesReceivedSinceParams{
-		PersonaID: p.ID,
-		Since:     s.Participant.LikesLastSeenAt,
-	}); err != nil {
-		response.Error(w, err)
-		return
-	}
-	if resp.HasUnseenMatches, err = h.q.HasMatchesSince(ctx, sqlc.HasMatchesSinceParams{
-		PersonaID: p.ID,
-		Since:     s.Participant.MatchesLastSeenAt,
-	}); err != nil {
-		response.Error(w, err)
-		return
-	}
+	resp.RemainingLikes = matching.RemainingLikes(state.LikesSent)
+	resp.ReceivedLikeCount = state.LikesReceived
+	resp.MatchCount = state.MatchCount
+	resp.HasUnseenLikes = state.HasUnseenLikes
+	resp.HasUnseenMatches = state.HasUnseenMatches
 
 	response.JSON(w, http.StatusOK, resp)
 }

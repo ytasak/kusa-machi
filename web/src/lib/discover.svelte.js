@@ -52,11 +52,6 @@ export function consumeCurrent({ cooldownId = null } = {}) {
   }
 }
 
-/** サーバが「もう対象ではない」と言った Persona を取り除く。 */
-export function dropFromQueue(personaId) {
-  discover.queue = discover.queue.filter((p) => p.id !== personaId);
-}
-
 /**
  * 次のバッチを取得し、まだキューに無い Persona だけを追加する。
  * これにより同じカードが二度出ることも、バッチの切れ目が見えることもない。

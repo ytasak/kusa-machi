@@ -7,21 +7,9 @@ package sqlc
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 )
-
-const countLikesReceived = `-- name: CountLikesReceived :one
-SELECT COUNT(*) FROM likes WHERE to_persona_id = $1
-`
-
-func (q *Queries) CountLikesReceived(ctx context.Context, toPersonaID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countLikesReceived, toPersonaID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
 
 const countLikesSent = `-- name: CountLikesSent :one
 SELECT COUNT(*) FROM likes WHERE from_persona_id = $1
@@ -34,26 +22,6 @@ func (q *Queries) CountLikesSent(ctx context.Context, fromPersonaID uuid.UUID) (
 	var count int64
 	err := row.Scan(&count)
 	return count, err
-}
-
-const hasLikesReceivedSince = `-- name: HasLikesReceivedSince :one
-SELECT EXISTS (
-    SELECT 1 FROM likes
-    WHERE to_persona_id = $1
-      AND created_at > COALESCE($2::timestamptz, 'epoch'::timestamptz)
-) AS has_unseen
-`
-
-type HasLikesReceivedSinceParams struct {
-	PersonaID uuid.UUID
-	Since     *time.Time
-}
-
-func (q *Queries) HasLikesReceivedSince(ctx context.Context, arg HasLikesReceivedSinceParams) (bool, error) {
-	row := q.db.QueryRow(ctx, hasLikesReceivedSince, arg.PersonaID, arg.Since)
-	var has_unseen bool
-	err := row.Scan(&has_unseen)
-	return has_unseen, err
 }
 
 const insertLike = `-- name: InsertLike :one

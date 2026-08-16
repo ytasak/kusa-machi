@@ -42,3 +42,27 @@ UPDATE personas SET photo_updated_at = NOW() WHERE id = $1 RETURNING photo_updat
 
 -- name: ClearPersonaPhoto :exec
 UPDATE personas SET photo_updated_at = NULL WHERE id = $1;
+
+-- name: GetHomeState :one
+-- ホーム（マイページ）に必要な情報を1往復で取得する。
+-- 以前は Persona 取得と5つの集計で6回の往復をしていた。
+SELECT
+    sqlc.embed(p),
+    (SELECT COUNT(*) FROM likes l WHERE l.from_persona_id = p.id) AS likes_sent,
+    (SELECT COUNT(*) FROM likes l WHERE l.to_persona_id = p.id) AS likes_received,
+    (
+        SELECT COUNT(*) FROM matches m
+        WHERE m.persona_low_id = p.id OR m.persona_high_id = p.id
+    ) AS match_count,
+    EXISTS (
+        SELECT 1 FROM likes l
+        WHERE l.to_persona_id = p.id
+          AND l.created_at > COALESCE(sqlc.narg('likes_last_seen_at')::timestamptz, 'epoch'::timestamptz)
+    ) AS has_unseen_likes,
+    EXISTS (
+        SELECT 1 FROM matches m
+        WHERE (m.persona_low_id = p.id OR m.persona_high_id = p.id)
+          AND m.created_at > COALESCE(sqlc.narg('matches_last_seen_at')::timestamptz, 'epoch'::timestamptz)
+    ) AS has_unseen_matches
+FROM personas p
+WHERE p.participant_id = sqlc.arg('participant_id');

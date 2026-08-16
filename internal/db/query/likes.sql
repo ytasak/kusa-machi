@@ -3,16 +3,6 @@
 -- 常に当日の Persona を指す。したがって日付での絞り込みは不要。
 SELECT COUNT(*) FROM likes WHERE from_persona_id = $1;
 
--- name: CountLikesReceived :one
-SELECT COUNT(*) FROM likes WHERE to_persona_id = $1;
-
--- name: HasLikesReceivedSince :one
-SELECT EXISTS (
-    SELECT 1 FROM likes
-    WHERE to_persona_id = sqlc.arg('persona_id')
-      AND created_at > COALESCE(sqlc.narg('since')::timestamptz, 'epoch'::timestamptz)
-) AS has_unseen;
-
 -- name: LikeExists :one
 SELECT EXISTS (
     SELECT 1 FROM likes

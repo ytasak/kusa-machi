@@ -55,6 +55,73 @@ func (q *Queries) GetActivePersona(ctx context.Context, arg GetActivePersonaPara
 	return i, err
 }
 
+const getHomeState = `-- name: GetHomeState :one
+SELECT
+    p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at,
+    (SELECT COUNT(*) FROM likes l WHERE l.from_persona_id = p.id) AS likes_sent,
+    (SELECT COUNT(*) FROM likes l WHERE l.to_persona_id = p.id) AS likes_received,
+    (
+        SELECT COUNT(*) FROM matches m
+        WHERE m.persona_low_id = p.id OR m.persona_high_id = p.id
+    ) AS match_count,
+    EXISTS (
+        SELECT 1 FROM likes l
+        WHERE l.to_persona_id = p.id
+          AND l.created_at > COALESCE($1::timestamptz, 'epoch'::timestamptz)
+    ) AS has_unseen_likes,
+    EXISTS (
+        SELECT 1 FROM matches m
+        WHERE (m.persona_low_id = p.id OR m.persona_high_id = p.id)
+          AND m.created_at > COALESCE($2::timestamptz, 'epoch'::timestamptz)
+    ) AS has_unseen_matches
+FROM personas p
+WHERE p.participant_id = $3
+`
+
+type GetHomeStateParams struct {
+	LikesLastSeenAt   *time.Time
+	MatchesLastSeenAt *time.Time
+	ParticipantID     uuid.UUID
+}
+
+type GetHomeStateRow struct {
+	Persona          Persona
+	LikesSent        int64
+	LikesReceived    int64
+	MatchCount       int64
+	HasUnseenLikes   bool
+	HasUnseenMatches bool
+}
+
+// ホーム（マイページ）に必要な情報を1往復で取得する。
+// 以前は Persona 取得と5つの集計で6回の往復をしていた。
+func (q *Queries) GetHomeState(ctx context.Context, arg GetHomeStateParams) (GetHomeStateRow, error) {
+	row := q.db.QueryRow(ctx, getHomeState, arg.LikesLastSeenAt, arg.MatchesLastSeenAt, arg.ParticipantID)
+	var i GetHomeStateRow
+	err := row.Scan(
+		&i.Persona.ID,
+		&i.Persona.ParticipantID,
+		&i.Persona.Age,
+		&i.Persona.Gender,
+		&i.Persona.HeightCm,
+		&i.Persona.Education,
+		&i.Persona.Occupation,
+		&i.Persona.AnnualIncome,
+		&i.Persona.Name,
+		&i.Persona.Hobby,
+		&i.Persona.Bio,
+		&i.Persona.ExposureCount,
+		&i.Persona.CreatedAt,
+		&i.Persona.PhotoUpdatedAt,
+		&i.LikesSent,
+		&i.LikesReceived,
+		&i.MatchCount,
+		&i.HasUnseenLikes,
+		&i.HasUnseenMatches,
+	)
+	return i, err
+}
+
 const getPersonaByID = `-- name: GetPersonaByID :one
 SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at FROM personas WHERE id = $1
 `

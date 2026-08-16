@@ -6,6 +6,9 @@ import { api, ApiError, setCsrfToken } from './api.js';
 import { resetDiscover } from './discover.svelte.js';
 import { errorMessage } from './errors.js';
 
+/** 1日の Like 予算。サーバ側の matching.DailyLikeBudget と一致させる。 */
+export const LIKE_BUDGET = 10;
+
 export const session = $state({
   loading: true,
   error: null,
