@@ -62,6 +62,9 @@ func NewRouter(deps Deps) http.Handler {
 			r.Post("/persona", h.GeneratePersona)
 			r.Get("/persona/me", h.MyPersona)
 			r.Patch("/persona/profile", h.UpdateProfile)
+			r.Get("/discover", h.Discover)
+			r.Post("/likes", h.CreateLike)
+			r.Post("/passes", h.CreatePass)
 		})
 	})
 

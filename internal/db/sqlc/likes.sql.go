@@ -55,3 +55,43 @@ func (q *Queries) HasLikesReceivedSince(ctx context.Context, arg HasLikesReceive
 	err := row.Scan(&has_unseen)
 	return has_unseen, err
 }
+
+const insertLike = `-- name: InsertLike :one
+INSERT INTO likes (id, from_persona_id, to_persona_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (from_persona_id, to_persona_id) DO NOTHING
+RETURNING id
+`
+
+type InsertLikeParams struct {
+	ID            uuid.UUID
+	FromPersonaID uuid.UUID
+	ToPersonaID   uuid.UUID
+}
+
+func (q *Queries) InsertLike(ctx context.Context, arg InsertLikeParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, insertLike, arg.ID, arg.FromPersonaID, arg.ToPersonaID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
+const likeExists = `-- name: LikeExists :one
+SELECT EXISTS (
+    SELECT 1 FROM likes
+    WHERE from_persona_id = $1
+      AND to_persona_id = $2
+) AS like_exists
+`
+
+type LikeExistsParams struct {
+	FromPersonaID uuid.UUID
+	ToPersonaID   uuid.UUID
+}
+
+func (q *Queries) LikeExists(ctx context.Context, arg LikeExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, likeExists, arg.FromPersonaID, arg.ToPersonaID)
+	var like_exists bool
+	err := row.Scan(&like_exists)
+	return like_exists, err
+}

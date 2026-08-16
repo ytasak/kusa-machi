@@ -43,3 +43,26 @@ func (q *Queries) HasMatchesSince(ctx context.Context, arg HasMatchesSinceParams
 	err := row.Scan(&has_unseen)
 	return has_unseen, err
 }
+
+const insertMatch = `-- name: InsertMatch :one
+INSERT INTO matches (id, persona_low_id, persona_high_id)
+VALUES ($1, $2, $3)
+ON CONFLICT (persona_low_id, persona_high_id) DO UPDATE
+SET persona_low_id = matches.persona_low_id
+RETURNING id
+`
+
+type InsertMatchParams struct {
+	ID            uuid.UUID
+	PersonaLowID  uuid.UUID
+	PersonaHighID uuid.UUID
+}
+
+// Idempotent match creation on the normalised pair. The no-op DO UPDATE returns
+// the existing row so a retry yields the same match id instead of an error.
+func (q *Queries) InsertMatch(ctx context.Context, arg InsertMatchParams) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, insertMatch, arg.ID, arg.PersonaLowID, arg.PersonaHighID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}

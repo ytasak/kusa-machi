@@ -13,6 +13,7 @@ import (
 	"net/http/cookiejar"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -220,6 +221,114 @@ func (c *Client) Start(t *testing.T) PersonaCard {
 	t.Helper()
 	c.Home(t)
 	return c.GeneratePersona(t)
+}
+
+// NewStartedClient opens a browser that already has today's persona.
+func (a *App) NewStartedClient(t *testing.T) (*Client, PersonaCard) {
+	t.Helper()
+	c := a.NewClient()
+	return c, c.Start(t)
+}
+
+// NewStartedClients creates n independent participants with personas.
+func (a *App) NewStartedClients(t *testing.T, n int) ([]*Client, []PersonaCard) {
+	t.Helper()
+	clients := make([]*Client, n)
+	cards := make([]PersonaCard, n)
+	for i := range n {
+		clients[i], cards[i] = a.NewStartedClient(t)
+	}
+	return clients, cards
+}
+
+// DiscoverResponse mirrors GET /api/discover.
+type DiscoverResponse struct {
+	Personas []PersonaCard `json:"personas"`
+}
+
+// LikeResponse mirrors POST /api/likes.
+type LikeResponse struct {
+	RemainingLikes int          `json:"remaining_likes"`
+	Matched        bool         `json:"matched"`
+	MatchID        *string      `json:"match_id"`
+	TargetPersona  *PersonaCard `json:"target_persona"`
+}
+
+// PassResponse mirrors POST /api/passes.
+type PassResponse struct {
+	PassCount        int  `json:"pass_count"`
+	ExcludedForToday bool `json:"excluded_for_today"`
+}
+
+// Like sends POST /api/likes without asserting the outcome.
+func (c *Client) Like(t *testing.T, personaID string) *Response {
+	t.Helper()
+	return c.Do(t, http.MethodPost, "/api/likes", map[string]any{"persona_id": personaID})
+}
+
+// Pass sends POST /api/passes without asserting the outcome.
+func (c *Client) Pass(t *testing.T, personaID string) *Response {
+	t.Helper()
+	return c.Do(t, http.MethodPost, "/api/passes", map[string]any{"persona_id": personaID})
+}
+
+// MustLike sends a like and requires it to succeed.
+func (c *Client) MustLike(t *testing.T, personaID string) LikeResponse {
+	t.Helper()
+	res := c.Like(t, personaID)
+	res.RequireStatus(t, http.StatusOK)
+
+	var out LikeResponse
+	res.Decode(t, &out)
+	return out
+}
+
+// MustPass sends a pass and requires it to succeed.
+func (c *Client) MustPass(t *testing.T, personaID string) PassResponse {
+	t.Helper()
+	res := c.Pass(t, personaID)
+	res.RequireStatus(t, http.StatusOK)
+
+	var out PassResponse
+	res.Decode(t, &out)
+	return out
+}
+
+// Discover fetches a candidate batch, optionally excluding ids.
+func (c *Client) Discover(t *testing.T, exclude ...string) DiscoverResponse {
+	t.Helper()
+	path := "/api/discover"
+	if len(exclude) > 0 {
+		path += "?exclude=" + strings.Join(exclude, ",")
+	}
+
+	res := c.Do(t, http.MethodGet, path, nil)
+	res.RequireStatus(t, http.StatusOK)
+
+	var out DiscoverResponse
+	res.Decode(t, &out)
+	return out
+}
+
+// ExposureCount reads a persona's exposure counter straight from the database.
+func (a *App) ExposureCount(t *testing.T, personaID string) int {
+	t.Helper()
+	var count int
+	err := a.Pool.QueryRow(t.Context(), `SELECT exposure_count FROM personas WHERE id = $1`, personaID).Scan(&count)
+	if err != nil {
+		t.Fatalf("read exposure_count: %v", err)
+	}
+	return count
+}
+
+// CountRows counts every row of a table, for invariants the API cannot show.
+func (a *App) CountRows(t *testing.T, table string) int {
+	t.Helper()
+	var count int
+	if err := a.Pool.QueryRow(t.Context(), `SELECT COUNT(*) FROM `+table).Scan(&count); err != nil {
+		t.Fatalf("count %s: %v", table, err)
+	}
+	return count
 }
 
 // Decode unmarshals the body into dst.

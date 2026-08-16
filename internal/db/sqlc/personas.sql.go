@@ -7,9 +7,43 @@ package sqlc
 
 import (
 	"context"
+	"time"
 
 	"github.com/google/uuid"
 )
+
+const getActivePersona = `-- name: GetActivePersona :one
+SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at FROM personas p
+JOIN participants pa ON pa.id = p.participant_id
+WHERE p.id = $1 AND pa.game_date = $2
+`
+
+type GetActivePersonaParams struct {
+	PersonaID uuid.UUID
+	GameDate  time.Time
+}
+
+// A persona is only a valid interaction target on its own game day.
+func (q *Queries) GetActivePersona(ctx context.Context, arg GetActivePersonaParams) (Persona, error) {
+	row := q.db.QueryRow(ctx, getActivePersona, arg.PersonaID, arg.GameDate)
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipantID,
+		&i.Age,
+		&i.Gender,
+		&i.HeightCm,
+		&i.Education,
+		&i.Occupation,
+		&i.AnnualIncome,
+		&i.Name,
+		&i.Hobby,
+		&i.Bio,
+		&i.ExposureCount,
+		&i.CreatedAt,
+	)
+	return i, err
+}
 
 const getPersonaByID = `-- name: GetPersonaByID :one
 SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at FROM personas WHERE id = $1
@@ -59,6 +93,17 @@ func (q *Queries) GetPersonaByParticipant(ctx context.Context, participantID uui
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const incrementExposure = `-- name: IncrementExposure :exec
+UPDATE personas SET exposure_count = exposure_count + 1 WHERE id = $1
+`
+
+// Exposure counts profiles the user actually evaluated, so this runs only after
+// a successful like or pass, never when a discover batch is returned.
+func (q *Queries) IncrementExposure(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, incrementExposure, id)
+	return err
 }
 
 const insertPersona = `-- name: InsertPersona :one
@@ -111,6 +156,20 @@ func (q *Queries) InsertPersona(ctx context.Context, arg InsertPersonaParams) (P
 		&i.CreatedAt,
 	)
 	return i, err
+}
+
+const lockPersona = `-- name: LockPersona :one
+SELECT id FROM personas WHERE id = $1 FOR UPDATE
+`
+
+// Serialises like/pass transactions. Callers always lock the personas of a pair
+// in normalised (low, high) order, which both keeps the like budget correct and
+// makes mutual-like detection deterministic without any deadlock risk.
+func (q *Queries) LockPersona(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRow(ctx, lockPersona, id)
+	var id_2 uuid.UUID
+	err := row.Scan(&id_2)
+	return id_2, err
 }
 
 const updatePersonaProfile = `-- name: UpdatePersonaProfile :one

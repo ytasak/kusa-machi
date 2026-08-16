@@ -15,6 +15,7 @@ import (
 	"kusamachi/internal/apperr"
 	"kusamachi/internal/clock"
 	"kusamachi/internal/db/sqlc"
+	"kusamachi/internal/matching"
 	"kusamachi/internal/persona"
 )
 
@@ -23,15 +24,22 @@ const maxBodyBytes = 8 << 10
 
 // Handler carries the dependencies every endpoint needs.
 type Handler struct {
-	pool  *pgxpool.Pool
-	q     *sqlc.Queries
-	clock clock.Clock
-	gen   *persona.Generator
+	pool     *pgxpool.Pool
+	q        *sqlc.Queries
+	clock    clock.Clock
+	gen      *persona.Generator
+	matching *matching.Service
 }
 
 // New builds the handler set.
 func New(pool *pgxpool.Pool, clk clock.Clock, gen *persona.Generator) *Handler {
-	return &Handler{pool: pool, q: sqlc.New(pool), clock: clk, gen: gen}
+	return &Handler{
+		pool:     pool,
+		q:        sqlc.New(pool),
+		clock:    clk,
+		gen:      gen,
+		matching: matching.NewService(pool),
+	}
 }
 
 // personaCard is the public shape of a persona. It deliberately excludes
