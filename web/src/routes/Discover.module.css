@@ -33,43 +33,100 @@
   min-height: 300px;
 }
 
-/* スマホでは与えられた領域いっぱいに広がるが、縦に長いデスクトップ
+/* カードはスマホでは与えられた領域いっぱいに広がるが、縦に長いデスクトップ
    ウィンドウでは縦長の帯にならず、カードのままに収まる。 */
-.stage > :global(*) {
+.cardLayer {
   width: 100%;
   flex: 1;
   max-height: 560px;
+  display: flex;
+  /* スタンプが出きったあとに現れるよう、わずかに遅らせて飛び出させる。 */
+  animation: cardIn 300ms cubic-bezier(0.2, 0.9, 0.25, 1.3) 90ms both;
 }
 
-.likeFlash {
+.cardLayer > :global(*) {
+  flex: 1;
+}
+
+/* ---- Like / Pass のスタンプ演出 ---- */
+
+.flash {
   position: absolute;
   inset: 0;
+  z-index: 2;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, rgb(255 107 107 / 88%), rgb(255 45 122 / 88%));
   border-radius: var(--radius-card);
-  color: #fff;
-  font-size: 38px;
-  font-weight: 800;
-  letter-spacing: 0.14em;
-  animation: flash 450ms ease-out;
   pointer-events: none;
+  animation: flashBurst 400ms ease-out forwards;
 }
 
-@keyframes flash {
+.flashLike {
+  background: linear-gradient(135deg, #ff6b6b, #ff2d7a);
+}
+
+.flashPass {
+  background: linear-gradient(135deg, #3b82f6, #06d6e0);
+}
+
+.stamp {
+  --angle: -11deg;
+  color: #fff;
+  font-size: 44px;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  padding: 6px 20px;
+  border: 6px solid #fff;
+  border-radius: 16px;
+  text-shadow: 0 3px 10px rgb(0 0 0 / 25%);
+  animation: stampIn 400ms cubic-bezier(0.2, 1.6, 0.35, 1) forwards;
+}
+
+.stampPass {
+  --angle: 11deg;
+}
+
+@keyframes flashBurst {
+  0% { opacity: 0; }
+  18% { opacity: 0.96; }
+  68% { opacity: 0.96; }
+  100% { opacity: 0; }
+}
+
+@keyframes stampIn {
+  0% {
+    opacity: 0;
+    transform: scale(2.4) rotate(var(--angle));
+  }
+  55% {
+    opacity: 1;
+    transform: scale(0.9) rotate(var(--angle));
+  }
+  75% {
+    transform: scale(1.04) rotate(var(--angle));
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1) rotate(var(--angle));
+  }
+}
+
+@keyframes cardIn {
   from {
     opacity: 0;
-    transform: scale(0.88);
+    transform: scale(0.86) translateY(18px);
   }
   to {
     opacity: 1;
-    transform: scale(1);
+    transform: scale(1) translateY(0);
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .likeFlash {
-    animation: none;
+  .cardLayer,
+  .flash,
+  .stamp {
+    animation-duration: 1ms;
   }
 }

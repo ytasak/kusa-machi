@@ -10,10 +10,12 @@
   import { discover, currentCard, consumeCurrent, ensureCards } from '../lib/discover.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
-  const LIKE_FLASH_MS = 450;
+  // スタンプ演出の長さ。CSS の flashBurst / stampIn と揃える。
+  const FLASH_MS = 400;
 
   let message = $state(null);
-  let likeFlash = $state(false);
+  /** 'like' | 'pass' | null */
+  let flash = $state(null);
   let matchedPersona = $state(null);
 
   const card = $derived(currentCard());
@@ -27,12 +29,22 @@
 
   let flashTimer = null;
 
-  function flashLike() {
-    likeFlash = true;
+  function showFlash(kind) {
+    // 一度消してから出し直す。連打してもアニメーションが再生され、
+    // 押した回数ぶんだけ手応えが返る。
+    flash = null;
     clearTimeout(flashTimer);
-    flashTimer = setTimeout(() => {
-      likeFlash = false;
-    }, LIKE_FLASH_MS);
+    requestAnimationFrame(() => {
+      flash = kind;
+      flashTimer = setTimeout(() => {
+        flash = null;
+      }, FLASH_MS);
+    });
+  }
+
+  function clearFlash() {
+    clearTimeout(flashTimer);
+    flash = null;
   }
 
   /**
@@ -51,7 +63,7 @@
     // 楽観更新。ここで残数を減らすので、連打しても上限を超えて送れない。
     session.remainingLikes -= 1;
     consumeCurrent();
-    flashLike();
+    showFlash('like');
     ensureCards();
 
     try {
@@ -62,9 +74,8 @@
 
       if (res.matched) {
         session.matchCount += 1;
-        // Match のほうが強い演出なので、LIKE のフラッシュは引っ込める。
-        clearTimeout(flashTimer);
-        likeFlash = false;
+        // Match のほうが強い演出なので、LIKE のスタンプは引っ込める。
+        clearFlash();
         matchedPersona = res.target_persona;
       }
     } catch (e) {
@@ -95,6 +106,7 @@
     // Pass は消費する予算が無いので、送り出したら結果を待つ必要がない。
     // 3回目でサーバが当日除外にするため、ローカルのクールダウンは常に付けてよい。
     consumeCurrent({ cooldownId: target.id });
+    showFlash('pass');
     ensureCards();
 
     try {
@@ -122,9 +134,19 @@
 
   {#if card}
     <div class={styles.stage}>
-      <PersonaCard persona={card} variant="hero" />
-      {#if likeFlash}
-        <div class={styles.likeFlash}>LIKE</div>
+      <!-- key を付けることで、カードが変わるたびに飛び出すアニメーションが走る。 -->
+      {#key card.id}
+        <div class={styles.cardLayer}>
+          <PersonaCard persona={card} variant="hero" />
+        </div>
+      {/key}
+
+      {#if flash}
+        <div class="{styles.flash} {flash === 'like' ? styles.flashLike : styles.flashPass}">
+          <span class="{styles.stamp} {flash === 'pass' ? styles.stampPass : ''}">
+            {flash === 'like' ? 'LIKE' : 'PASS'}
+          </span>
+        </div>
       {/if}
     </div>
 
