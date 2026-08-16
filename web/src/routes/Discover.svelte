@@ -9,13 +9,14 @@
   import { session, withDayGuard, LIKE_BUDGET } from '../lib/session.svelte.js';
   import { discover, currentCard, consumeCurrent, ensureCards } from '../lib/discover.svelte.js';
   import { errorMessage } from '../lib/errors.js';
+  import { vibrate, HAPTICS } from '../lib/haptics.js';
 
-  // スタンプ演出の長さ。CSS の flashBurst / stampIn と揃える。
-  const FLASH_MS = 400;
+  // 送り出したカードが画面外へ抜けるまでの時間。CSS の flyLike / flyPass と揃える。
+  const EXIT_MS = 460;
 
   let message = $state(null);
-  /** 'like' | 'pass' | null */
-  let flash = $state(null);
+  /** 送り出し中のカード: { persona, kind, seq } */
+  let exiting = $state(null);
   let matchedPersona = $state(null);
 
   const card = $derived(currentCard());
@@ -27,24 +28,21 @@
   // 送り出しているので、ユーザーに見せるべきことは何も無い。
   const STALE_CODES = new Set(['AlreadyLiked', 'TargetPersonaUnavailable', 'PassLimitReached']);
 
-  let flashTimer = null;
+  let exitTimer = null;
+  let throwSeq = 0;
 
-  function showFlash(kind) {
-    // 一度消してから出し直す。連打してもアニメーションが再生され、
-    // 押した回数ぶんだけ手応えが返る。
-    flash = null;
-    clearTimeout(flashTimer);
-    requestAnimationFrame(() => {
-      flash = kind;
-      flashTimer = setTimeout(() => {
-        flash = null;
-      }, FLASH_MS);
-    });
-  }
-
-  function clearFlash() {
-    clearTimeout(flashTimer);
-    flash = null;
+  /**
+   * 判定したカードを次のカードの上に重ねてから飛ばす。
+   *
+   * seq を鍵にして毎回別の要素として描画するので、連打しても
+   * アニメーションが最初から再生され、押した回数ぶん手応えが返る。
+   */
+  function throwCard(persona, kind) {
+    exiting = { persona, kind, seq: ++throwSeq };
+    clearTimeout(exitTimer);
+    exitTimer = setTimeout(() => {
+      exiting = null;
+    }, EXIT_MS);
   }
 
   /**
@@ -63,7 +61,8 @@
     // 楽観更新。ここで残数を減らすので、連打しても上限を超えて送れない。
     session.remainingLikes -= 1;
     consumeCurrent();
-    showFlash('like');
+    throwCard(target, 'like');
+    vibrate(HAPTICS.like);
     ensureCards();
 
     try {
@@ -74,9 +73,8 @@
 
       if (res.matched) {
         session.matchCount += 1;
-        // Match のほうが強い演出なので、LIKE のスタンプは引っ込める。
-        clearFlash();
         matchedPersona = res.target_persona;
+        vibrate(HAPTICS.match);
       }
     } catch (e) {
       revertLike(e);
@@ -106,7 +104,8 @@
     // Pass は消費する予算が無いので、送り出したら結果を待つ必要がない。
     // 3回目でサーバが当日除外にするため、ローカルのクールダウンは常に付けてよい。
     consumeCurrent({ cooldownId: target.id });
-    showFlash('pass');
+    throwCard(target, 'pass');
+    vibrate(HAPTICS.pass);
     ensureCards();
 
     try {
@@ -132,22 +131,36 @@
     <p class={ui.error}>{message}</p>
   {/if}
 
-  {#if card}
+  {#if card || exiting}
     <div class={styles.stage}>
-      <!-- key を付けることで、カードが変わるたびに飛び出すアニメーションが走る。 -->
-      {#key card.id}
-        <div class={styles.cardLayer}>
-          <PersonaCard persona={card} variant="hero" />
-        </div>
-      {/key}
+      <div class={styles.cardBox}>
+        {#if card}
+          <!-- key を付けることで、カードが変わるたびに飛び出す動きが走る。 -->
+          {#key card.id}
+            <div class={styles.cardLayer}>
+              <PersonaCard persona={card} variant="hero" />
+            </div>
+          {/key}
+        {/if}
 
-      {#if flash}
-        <div class="{styles.flash} {flash === 'like' ? styles.flashLike : styles.flashPass}">
-          <span class="{styles.stamp} {flash === 'pass' ? styles.stampPass : ''}">
-            {flash === 'like' ? 'LIKE' : 'PASS'}
-          </span>
-        </div>
-      {/if}
+        {#if exiting}
+          {#key exiting.seq}
+            <div
+              class="{styles.exitLayer} {exiting.kind === 'like' ? styles.exitLike : styles.exitPass}"
+            >
+              <PersonaCard persona={exiting.persona} variant="hero" />
+              <span
+                class="{styles.tint} {exiting.kind === 'like' ? styles.tintLike : styles.tintPass}"
+              ></span>
+              <span
+                class="{styles.stamp} {exiting.kind === 'like' ? styles.stampLike : styles.stampPass}"
+              >
+                {exiting.kind === 'like' ? 'LIKE' : 'PASS'}
+              </span>
+            </div>
+          {/key}
+        {/if}
+      </div>
     </div>
 
     <div class={ui.actions}>

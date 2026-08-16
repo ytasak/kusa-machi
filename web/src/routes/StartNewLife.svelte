@@ -6,6 +6,7 @@
   import { startNewLife } from '../lib/session.svelte.js';
   import { errorMessage } from '../lib/errors.js';
   import { go, SCREENS } from '../lib/nav.svelte.js';
+  import { vibrate, HAPTICS } from '../lib/haptics.js';
 
   // 生成アニメーションを少しのあいだ見せてから、全属性を一度に開示する。
   const REVEAL_DELAY_MS = 1200;
@@ -16,6 +17,7 @@
   async function onStart() {
     generating = true;
     error = null;
+    vibrate(HAPTICS.start);
     const startedAt = Date.now();
     try {
       await startNewLife();
