@@ -1,0 +1,23 @@
+# Local development database only. The credentials below are throwaway values
+# for a container that is never exposed outside the developer machine.
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: kusa
+      POSTGRES_PASSWORD: kusa
+      POSTGRES_DB: kusamachi
+      TZ: Asia/Tokyo
+    ports:
+      - '5433:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./scripts/initdb:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U kusa -d kusamachi']
+      interval: 3s
+      timeout: 3s
+      retries: 20
+
+volumes:
+  pgdata:

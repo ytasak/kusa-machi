@@ -1,0 +1,22 @@
+.shell {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 24px 0;
+}
+
+.title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.status {
+  font-size: 14px;
+  color: #5d5b57;
+}
+
+.error {
+  font-size: 14px;
+  color: #b03030;
+}
