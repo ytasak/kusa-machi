@@ -2,55 +2,28 @@
   import styles from './StartNewLife.module.css';
   import ui from '../components/ui.module.css';
   import Icon from '../components/Icon.svelte';
-  import GeneratingAnimation from '../components/GeneratingAnimation.svelte';
-  import { startNewLife } from '../lib/session.svelte.js';
-  import { errorMessage } from '../lib/errors.js';
-  import { go, SCREENS } from '../lib/nav.svelte.js';
+  import { rollNewLife } from '../lib/reveal.svelte.js';
   import { vibrate, HAPTICS } from '../lib/haptics.js';
 
-  // 生成アニメーションを少しのあいだ見せてから、全属性を一度に開示する。
-  const REVEAL_DELAY_MS = 1200;
-
-  let generating = $state(false);
-  let error = $state(null);
-
-  async function onStart() {
-    generating = true;
-    error = null;
+  // 抽選中の表示も失敗時の案内も PersonaReveal のオーバーレイが引き受けるので、
+  // この画面はボタンを出すだけでよい。
+  function onStart() {
     vibrate(HAPTICS.start);
-    const startedAt = Date.now();
-    try {
-      await startNewLife();
-      const elapsed = Date.now() - startedAt;
-      if (elapsed < REVEAL_DELAY_MS) {
-        await new Promise((resolve) => setTimeout(resolve, REVEAL_DELAY_MS - elapsed));
-      }
-      go(SCREENS.mypage);
-    } catch (e) {
-      error = errorMessage(e);
-    } finally {
-      generating = false;
-    }
+    rollNewLife();
   }
 </script>
 
 <section class={styles.screen}>
-  {#if generating}
-    <GeneratingAnimation />
-  {:else}
-    <div class={styles.mark}>
-      <Icon name="sparkle" size={40} filled />
-    </div>
+  <div class={styles.mark}>
+    <Icon name="sparkle" size={40} filled />
+  </div>
 
-    <h1 class={styles.title}>クサマチ</h1>
-    <p class={styles.tagline}>今日の人生を、ひとつ。</p>
-    <div class={styles.lead}>
-      <p>毎日ひとつ、その日だけのあなたが配られます。</p>
-      <p>Likeは1日10回。0時にすべて消えます。</p>
-    </div>
+  <h1 class={styles.title}>クサマチ</h1>
+  <p class={styles.tagline}>今日の人生を、ひとつ。</p>
+  <div class={styles.lead}>
+    <p>毎日ひとつ、その日だけのあなたが配られます。</p>
+    <p>Likeは1日10回。0時にすべて消えます。</p>
+  </div>
 
-    {#if error}<p class={ui.error}>{error}</p>{/if}
-
-    <button class="{ui.primary} {styles.cta}" onclick={onStart}>新しい人生を始める</button>
-  {/if}
+  <button class="{ui.primary} {styles.cta}" onclick={onStart}>新しい人生を始める</button>
 </section>
