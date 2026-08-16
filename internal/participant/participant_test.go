@@ -29,6 +29,9 @@ func TestSetTokenUsesTheIframeSafeCookieAttributes(t *testing.T) {
 		"Secure",
 		"SameSite=None",
 		"Max-Age=2592000", // 30日
+		// サードパーティ Cookie を遮断するブラウザでも埋め込み元ごとに
+		// 分離して保存させるため。これが無いと iOS Safari で詰む。
+		"Partitioned",
 	} {
 		if !strings.Contains(header, want) {
 			t.Errorf("Set-Cookie %q is missing %q", header, want)
@@ -37,6 +40,18 @@ func TestSetTokenUsesTheIframeSafeCookieAttributes(t *testing.T) {
 
 	if strings.Contains(header, "Domain=") {
 		t.Errorf("Set-Cookie %q must not pin an explicit domain", header)
+	}
+}
+
+// ローカルの平文 http では Partitioned は付けられない（ブラウザが Secure を
+// 要求する）。開発用の設定でうっかり付かないことを確かめる。
+func TestSetTokenDoesNotPartitionInTheLocalConfig(t *testing.T) {
+	rec := httptest.NewRecorder()
+	SetToken(rec, CookieConfig{Secure: false, SameSite: http.SameSiteLaxMode}, uuid.New())
+
+	header := rec.Header().Get("Set-Cookie")
+	if strings.Contains(header, "Partitioned") {
+		t.Errorf("Set-Cookie %q must not be Partitioned without Secure", header)
 	}
 }
 

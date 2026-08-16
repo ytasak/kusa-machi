@@ -55,6 +55,12 @@ func SetToken(w http.ResponseWriter, cfg CookieConfig, token uuid.UUID) {
 		HttpOnly: true,
 		Secure:   cfg.Secure,
 		SameSite: cfg.SameSite,
+		// サードパーティ Cookie を遮断するブラウザ（iOS Safari など）では、
+		// SameSite=None だけでは Cookie が保存されず、リクエストのたびに
+		// 別の participant が作られて CSRF エラーで詰む。Partitioned を付けると
+		// 埋め込み元サイトごとに分離された領域に保存され、遮断下でも機能する。
+		// 属性を知らない古いブラウザは単に無視するので、付けて損はない。
+		Partitioned: cfg.SameSite == http.SameSiteNoneMode,
 	})
 }
 
