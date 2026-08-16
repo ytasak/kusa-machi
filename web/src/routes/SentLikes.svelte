@@ -4,6 +4,7 @@
   import PersonaCard from '../components/PersonaCard.svelte';
   import { api } from '../lib/api.js';
   import { goHome } from '../lib/nav.svelte.js';
+  import { errorMessage } from '../lib/errors.js';
 
   let personas = $state([]);
   let loading = $state(true);
@@ -14,7 +15,7 @@
       const res = await api.get('/api/likes/sent');
       personas = res.personas;
     } catch (e) {
-      error = e.message;
+      error = errorMessage(e);
     } finally {
       loading = false;
     }

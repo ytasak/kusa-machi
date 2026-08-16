@@ -4,6 +4,7 @@
   import PersonaCard from '../components/PersonaCard.svelte';
   import { session, updateProfile, withDayGuard } from '../lib/session.svelte.js';
   import { goHome } from '../lib/nav.svelte.js';
+  import { errorMessage } from '../lib/errors.js';
 
   const LIMITS = { name: 20, hobby: 30, bio: 60 };
 
@@ -38,7 +39,7 @@
       bio = session.persona.bio ?? '';
       saved = true;
     } catch (e) {
-      error = e.message;
+      error = errorMessage(e);
     } finally {
       saving = false;
     }

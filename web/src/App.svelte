@@ -10,6 +10,7 @@
   import Matches from './routes/Matches.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
   import { session, bootstrap, remainingMsFrom, markDayEnded, startNewLife } from './lib/session.svelte.js';
+  import { errorMessage } from './lib/errors.js';
   import { ticker, startTicker } from './lib/ticker.svelte.js';
   import { nav, SCREENS, goHome } from './lib/nav.svelte.js';
 
@@ -51,7 +52,7 @@
       warningDismissed = false;
       goHome();
     } catch (e) {
-      startError = e.message;
+      startError = errorMessage(e);
     } finally {
       startingNewLife = false;
     }

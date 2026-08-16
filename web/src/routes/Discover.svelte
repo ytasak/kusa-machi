@@ -8,6 +8,7 @@
   import { session, withDayGuard } from '../lib/session.svelte.js';
   import { discover, currentCard, consumeCurrent, dropFromQueue, ensureCards } from '../lib/discover.svelte.js';
   import { goHome } from '../lib/nav.svelte.js';
+  import { errorMessage } from '../lib/errors.js';
 
   const LIKE_FLASH_MS = 450;
 
@@ -26,7 +27,7 @@
 
   function handleActionError(e, personaId) {
     if (!(e instanceof ApiError)) {
-      message = e.message;
+      message = errorMessage(e);
       return;
     }
     if (STALE_CODES.has(e.code)) {
@@ -35,10 +36,10 @@
     }
     if (e.code === 'LikeLimitExceeded') {
       session.remainingLikes = 0;
-      message = '今日のLikeを使い切りました';
+      message = errorMessage(e);
       return;
     }
-    message = e.message;
+    message = errorMessage(e);
   }
 
   async function onLike() {

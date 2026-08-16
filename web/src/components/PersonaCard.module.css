@@ -1,5 +1,8 @@
 .card {
   position: relative;
+  /* Stated explicitly so the card looks identical inside the centred match
+     overlay as it does in a list. */
+  text-align: left;
   background: #fff;
   border: 1px solid #e3e0da;
   border-radius: 14px;

@@ -5,6 +5,7 @@
   import { api } from '../lib/api.js';
   import { session } from '../lib/session.svelte.js';
   import { goHome } from '../lib/nav.svelte.js';
+  import { errorMessage } from '../lib/errors.js';
 
   let personas = $state([]);
   let loading = $state(true);
@@ -18,7 +19,7 @@
       session.hasUnseenMatches = false;
       session.matchCount = personas.length;
     } catch (e) {
-      error = e.message;
+      error = errorMessage(e);
     } finally {
       loading = false;
     }

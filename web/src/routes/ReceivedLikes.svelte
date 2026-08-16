@@ -7,6 +7,7 @@
   import { api, ApiError } from '../lib/api.js';
   import { session, withDayGuard } from '../lib/session.svelte.js';
   import { goHome } from '../lib/nav.svelte.js';
+  import { errorMessage } from '../lib/errors.js';
 
   let personas = $state([]);
   let loading = $state(true);
@@ -27,7 +28,7 @@
       session.hasUnseenLikes = false;
       session.receivedLikeCount = personas.length;
     } catch (e) {
-      error = e.message;
+      error = errorMessage(e);
     } finally {
       loading = false;
     }
@@ -53,10 +54,10 @@
       }
       if (e instanceof ApiError && e.code === 'LikeLimitExceeded') {
         session.remainingLikes = 0;
-        message = '今日のLikeを使い切りました';
+        message = errorMessage(e);
         return;
       }
-      message = e.message;
+      message = errorMessage(e);
     }
   }
 

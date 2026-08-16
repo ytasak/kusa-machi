@@ -4,6 +4,7 @@
 
 import { api, ApiError, setCsrfToken } from './api.js';
 import { resetDiscover } from './discover.svelte.js';
+import { errorMessage } from './errors.js';
 
 export const session = $state({
   loading: true,
@@ -84,7 +85,7 @@ export async function bootstrap() {
   try {
     await refreshHome();
   } catch (e) {
-    session.error = e.message;
+    session.error = errorMessage(e);
   } finally {
     session.loading = false;
   }

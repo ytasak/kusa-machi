@@ -3,6 +3,7 @@
 // reload loses it, which the spec accepts.
 
 import { api } from './api.js';
+import { errorMessage } from './errors.js';
 
 /** How many upcoming cards a just-passed persona stays hidden for. */
 const PASS_COOLDOWN_CARDS = 5;
@@ -78,7 +79,7 @@ export async function fetchBatch() {
     discover.queue = [...discover.queue, ...fresh];
     discover.exhausted = discover.queue.length === 0;
   } catch (e) {
-    discover.error = e.message;
+    discover.error = errorMessage(e);
   } finally {
     discover.loading = false;
   }

@@ -1,11 +1,13 @@
 <script>
+  import { onMount } from 'svelte';
   import styles from './Home.module.css';
   import ui from '../components/ui.module.css';
   import PersonaCard from '../components/PersonaCard.svelte';
   import GeneratingAnimation from '../components/GeneratingAnimation.svelte';
-  import { session, startNewLife, remainingMsFrom } from '../lib/session.svelte.js';
+  import { session, startNewLife, refreshHome, remainingMsFrom } from '../lib/session.svelte.js';
   import { ticker } from '../lib/ticker.svelte.js';
   import { countdown } from '../lib/format.js';
+  import { errorMessage } from '../lib/errors.js';
   import { go, SCREENS } from '../lib/nav.svelte.js';
 
   // The generation animation runs for a moment, then every attribute is
@@ -16,6 +18,17 @@
   let error = $state(null);
 
   const remaining = $derived(countdown(remainingMsFrom(ticker.now)));
+
+  // Home is recreated every time the user navigates back to it, so this is the
+  // "state refreshes on navigation" the spec asks for: counters and badges
+  // pick up likes and matches that arrived while another screen was open.
+  onMount(async () => {
+    try {
+      await refreshHome();
+    } catch (e) {
+      error = errorMessage(e);
+    }
+  });
 
   async function onStartNewLife() {
     generating = true;
@@ -28,7 +41,7 @@
         await new Promise((resolve) => setTimeout(resolve, REVEAL_DELAY_MS - elapsed));
       }
     } catch (e) {
-      error = e.message;
+      error = errorMessage(e);
     } finally {
       generating = false;
     }
