@@ -25,6 +25,7 @@ import (
 	httpx "kusamachi/internal/http"
 	"kusamachi/internal/participant"
 	"kusamachi/internal/persona"
+	"kusamachi/internal/photo"
 )
 
 func main() {
@@ -75,13 +76,19 @@ func serve(cfg config.Config) error {
 
 	gameClock := clock.Real{}
 
+	photos, err := photo.NewStore(cfg.PhotoDir)
+	if err != nil {
+		return err
+	}
+
 	// Physical deletion of previous days; correctness does not depend on it.
-	go cleanup.NewJob(pool, gameClock).Run(ctx, cfg.CleanupInterval)
+	go cleanup.NewJob(pool, gameClock, photos).Run(ctx, cfg.CleanupInterval)
 
 	router := httpx.NewRouter(httpx.Deps{
 		Pool:      pool,
 		Clock:     gameClock,
 		Generator: persona.NewGenerator(),
+		Photos:    photos,
 		Cookie: participant.CookieConfig{
 			Secure:   cfg.CookieSecure,
 			SameSite: cfg.CookieSameSite,

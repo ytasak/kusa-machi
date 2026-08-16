@@ -14,24 +14,40 @@ import (
 
 	"kusamachi/internal/clock"
 	"kusamachi/internal/db/sqlc"
+	"kusamachi/internal/photo"
 )
 
 // Job deletes participants from previous game days. ON DELETE CASCADE removes
 // their personas, likes, passes and matches.
 type Job struct {
-	q     *sqlc.Queries
-	clock clock.Clock
+	q      *sqlc.Queries
+	clock  clock.Clock
+	photos *photo.Store
 }
 
 // NewJob builds the deletion job.
-func NewJob(pool *pgxpool.Pool, clk clock.Clock) *Job {
-	return &Job{q: sqlc.New(pool), clock: clk}
+func NewJob(pool *pgxpool.Pool, clk clock.Clock, photos *photo.Store) *Job {
+	return &Job{q: sqlc.New(pool), clock: clk, photos: photos}
 }
 
 // RunOnce deletes everything older than the current JST game day and reports
 // how many participants were removed. Idempotent and safe to retry.
+//
+// Photo files are not covered by ON DELETE CASCADE, so they are swept too.
 func (j *Job) RunOnce(ctx context.Context) (int64, error) {
-	return j.q.DeleteParticipantsBefore(ctx, clock.Today(j.clock))
+	today := clock.Today(j.clock)
+
+	deleted, err := j.q.DeleteParticipantsBefore(ctx, today)
+	if err != nil {
+		return 0, err
+	}
+
+	if j.photos != nil {
+		if _, err := j.photos.DeleteBefore(today); err != nil {
+			return deleted, err
+		}
+	}
+	return deleted, nil
 }
 
 // Run executes the job immediately and then on every tick until ctx is done.

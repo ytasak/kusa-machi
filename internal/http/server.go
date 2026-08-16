@@ -20,6 +20,7 @@ import (
 	"kusamachi/internal/http/response"
 	"kusamachi/internal/participant"
 	"kusamachi/internal/persona"
+	"kusamachi/internal/photo"
 )
 
 // Deps are the collaborators the router needs.
@@ -27,6 +28,7 @@ type Deps struct {
 	Pool       *pgxpool.Pool
 	Clock      clock.Clock
 	Generator  *persona.Generator
+	Photos     *photo.Store
 	Cookie     participant.CookieConfig
 	WebDistDir string
 }
@@ -34,7 +36,7 @@ type Deps struct {
 // NewRouter builds the whole HTTP surface.
 func NewRouter(deps Deps) http.Handler {
 	q := sqlc.New(deps.Pool)
-	h := handler.New(deps.Pool, deps.Clock, deps.Generator)
+	h := handler.New(deps.Pool, deps.Clock, deps.Generator, deps.Photos)
 
 	r := chi.NewRouter()
 	r.Use(chimw.RequestID)
@@ -62,6 +64,9 @@ func NewRouter(deps Deps) http.Handler {
 			r.Post("/persona", h.GeneratePersona)
 			r.Get("/persona/me", h.MyPersona)
 			r.Patch("/persona/profile", h.UpdateProfile)
+			r.Post("/persona/photo", h.UploadPhoto)
+			r.Delete("/persona/photo", h.DeletePhoto)
+			r.Get("/personas/{personaID}/photo", h.GetPhoto)
 			r.Get("/discover", h.Discover)
 			r.Post("/likes", h.CreateLike)
 			r.Post("/passes", h.CreatePass)

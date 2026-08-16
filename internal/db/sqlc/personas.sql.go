@@ -12,8 +12,17 @@ import (
 	"github.com/google/uuid"
 )
 
+const clearPersonaPhoto = `-- name: ClearPersonaPhoto :exec
+UPDATE personas SET photo_updated_at = NULL WHERE id = $1
+`
+
+func (q *Queries) ClearPersonaPhoto(ctx context.Context, id uuid.UUID) error {
+	_, err := q.db.Exec(ctx, clearPersonaPhoto, id)
+	return err
+}
+
 const getActivePersona = `-- name: GetActivePersona :one
-SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at FROM personas p
+SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at FROM personas p
 JOIN participants pa ON pa.id = p.participant_id
 WHERE p.id = $1 AND pa.game_date = $2
 `
@@ -41,12 +50,13 @@ func (q *Queries) GetActivePersona(ctx context.Context, arg GetActivePersonaPara
 		&i.Bio,
 		&i.ExposureCount,
 		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
 	)
 	return i, err
 }
 
 const getPersonaByID = `-- name: GetPersonaByID :one
-SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at FROM personas WHERE id = $1
+SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at FROM personas WHERE id = $1
 `
 
 func (q *Queries) GetPersonaByID(ctx context.Context, id uuid.UUID) (Persona, error) {
@@ -66,12 +76,13 @@ func (q *Queries) GetPersonaByID(ctx context.Context, id uuid.UUID) (Persona, er
 		&i.Bio,
 		&i.ExposureCount,
 		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
 	)
 	return i, err
 }
 
 const getPersonaByParticipant = `-- name: GetPersonaByParticipant :one
-SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at FROM personas WHERE participant_id = $1
+SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at FROM personas WHERE participant_id = $1
 `
 
 func (q *Queries) GetPersonaByParticipant(ctx context.Context, participantID uuid.UUID) (Persona, error) {
@@ -91,6 +102,7 @@ func (q *Queries) GetPersonaByParticipant(ctx context.Context, participantID uui
 		&i.Bio,
 		&i.ExposureCount,
 		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
 	)
 	return i, err
 }
@@ -112,7 +124,7 @@ INSERT INTO personas (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (participant_id)
 DO UPDATE SET participant_id = personas.participant_id
-RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at
 `
 
 type InsertPersonaParams struct {
@@ -154,6 +166,7 @@ func (q *Queries) InsertPersona(ctx context.Context, arg InsertPersonaParams) (P
 		&i.Bio,
 		&i.ExposureCount,
 		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
 	)
 	return i, err
 }
@@ -172,11 +185,22 @@ func (q *Queries) LockPersona(ctx context.Context, id uuid.UUID) (uuid.UUID, err
 	return id_2, err
 }
 
+const setPersonaPhoto = `-- name: SetPersonaPhoto :one
+UPDATE personas SET photo_updated_at = NOW() WHERE id = $1 RETURNING photo_updated_at
+`
+
+func (q *Queries) SetPersonaPhoto(ctx context.Context, id uuid.UUID) (*time.Time, error) {
+	row := q.db.QueryRow(ctx, setPersonaPhoto, id)
+	var photo_updated_at *time.Time
+	err := row.Scan(&photo_updated_at)
+	return photo_updated_at, err
+}
+
 const updatePersonaProfile = `-- name: UpdatePersonaProfile :one
 UPDATE personas
 SET name = $2, hobby = $3, bio = $4
 WHERE id = $1
-RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at
 `
 
 type UpdatePersonaProfileParams struct {
@@ -208,6 +232,7 @@ func (q *Queries) UpdatePersonaProfile(ctx context.Context, arg UpdatePersonaPro
 		&i.Bio,
 		&i.ExposureCount,
 		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
 	)
 	return i, err
 }

@@ -20,7 +20,11 @@ RUN apk add --no-cache ca-certificates tzdata
 WORKDIR /app
 COPY --from=build /out/server /app/server
 COPY --from=web /web/dist /app/web/dist
+# Profile pictures are written here. They are day-scoped and swept daily, so a
+# restart losing them only costs the current day's pictures.
+RUN mkdir -p /app/data/photos
 ENV WEB_DIST_DIR=/app/web/dist \
+    PHOTO_DIR=/app/data/photos \
     ADDR=:8080
 EXPOSE 8080
 CMD ["/app/server"]

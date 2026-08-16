@@ -36,3 +36,9 @@ UPDATE personas
 SET name = $2, hobby = $3, bio = $4
 WHERE id = $1
 RETURNING *;
+
+-- name: SetPersonaPhoto :one
+UPDATE personas SET photo_updated_at = NOW() WHERE id = $1 RETURNING photo_updated_at;
+
+-- name: ClearPersonaPhoto :exec
+UPDATE personas SET photo_updated_at = NULL WHERE id = $1;

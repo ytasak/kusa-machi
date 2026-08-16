@@ -13,7 +13,7 @@ import (
 )
 
 const discoverCandidates = `-- name: DiscoverCandidates :many
-SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at
+SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at
 FROM personas p
 JOIN participants pa ON pa.id = p.participant_id
 LEFT JOIN passes ps
@@ -80,6 +80,7 @@ func (q *Queries) DiscoverCandidates(ctx context.Context, arg DiscoverCandidates
 			&i.Bio,
 			&i.ExposureCount,
 			&i.CreatedAt,
+			&i.PhotoUpdatedAt,
 		); err != nil {
 			return nil, err
 		}

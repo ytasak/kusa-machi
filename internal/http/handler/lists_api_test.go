@@ -149,7 +149,7 @@ func TestCleanupDeletesPreviousDaysOnly(t *testing.T) {
 	carol, _ := app.NewStartedClient(t)
 	carol.MustPass(t, bobCard.ID)
 
-	job := cleanup.NewJob(app.Pool, app.Clock)
+	job := cleanup.NewJob(app.Pool, app.Clock, app.Photos)
 
 	deleted, err := job.RunOnce(t.Context())
 	if err != nil {
@@ -192,7 +192,7 @@ func TestCleanupKeepsTodayWhileDeletingYesterday(t *testing.T) {
 	app.Clock.Advance(24 * time.Hour)
 	today, _ := app.NewStartedClient(t)
 
-	job := cleanup.NewJob(app.Pool, app.Clock)
+	job := cleanup.NewJob(app.Pool, app.Clock, app.Photos)
 	if _, err := job.RunOnce(t.Context()); err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}

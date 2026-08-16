@@ -88,6 +88,7 @@ docker run --rm -p 8080:8080 \
 | `ADDR` | `:8080` | リッスンアドレス |
 | `DATABASE_URL` | `postgres://kusa:kusa@localhost:5433/kusamachi?sslmode=disable` | 接続先 |
 | `WEB_DIST_DIR` | `web/dist` | 配信するフロントエンドビルド |
+| `PHOTO_DIR` | `data/photos` | プロフィール写真の保存先。`game_date` ごとのディレクトリに保存し、日次ジョブが前日分を削除する |
 | `COOKIE_SECURE` | `true` | 本番は必ず `true` |
 | `COOKIE_SAMESITE` | `none` | kusa の iframe 埋め込みに必要。本番は `none` |
 | `CLEANUP_INTERVAL` | `1h` | 前日データの物理削除ジョブの実行間隔 |
@@ -107,6 +108,9 @@ docker run --rm -p 8080:8080 \
 | POST | `/api/persona` | 当日の Persona を生成（冪等・同日再生成なし） |
 | GET | `/api/persona/me` | 自分の Persona |
 | PATCH | `/api/persona/profile` | name / hobby / bio のみ更新 |
+| POST | `/api/persona/photo` | プロフィール写真をアップロード（本文は生の画像） |
+| DELETE | `/api/persona/photo` | プロフィール写真を削除 |
+| GET | `/api/personas/{id}/photo` | 当日Personaの写真を配信 |
 | GET | `/api/discover` | 最大5件の候補（`?exclude=id1,id2`） |
 | POST | `/api/likes` | Like（10件/日、相互でMatch生成） |
 | POST | `/api/passes` | Pass（同一相手3回で当日除外） |

@@ -27,6 +27,7 @@ import (
 	"kusamachi/internal/http/middleware"
 	"kusamachi/internal/participant"
 	"kusamachi/internal/persona"
+	"kusamachi/internal/photo"
 )
 
 const envTestDatabaseURL = "TEST_DATABASE_URL"
@@ -38,6 +39,7 @@ type App struct {
 	Pool   *pgxpool.Pool
 	Clock  *clock.Fake
 	Server *httptest.Server
+	Photos *photo.Store
 }
 
 // New starts a server whose clock is pinned to 2026-08-16 12:00 JST and whose
@@ -68,10 +70,18 @@ func New(t *testing.T) *App {
 	}
 
 	clk := clock.NewFakeJST(2026, time.August, 16, 12, 0, 0)
+
+	photos, err := photo.NewStore(t.TempDir())
+	if err != nil {
+		pool.Close()
+		t.Fatalf("photo store: %v", err)
+	}
+
 	router := httpx.NewRouter(httpx.Deps{
 		Pool:      pool,
 		Clock:     clk,
 		Generator: persona.NewGenerator(),
+		Photos:    photos,
 		Cookie: participant.CookieConfig{
 			Secure:   false,
 			SameSite: http.SameSiteLaxMode,
@@ -86,7 +96,7 @@ func New(t *testing.T) *App {
 		pool.Close()
 	})
 
-	return &App{Pool: pool, Clock: clk, Server: srv}
+	return &App{Pool: pool, Clock: clk, Server: srv, Photos: photos}
 }
 
 // Client is one browser: its own cookie jar and its own daily CSRF token.

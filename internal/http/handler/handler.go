@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 
@@ -17,6 +18,7 @@ import (
 	"kusamachi/internal/db/sqlc"
 	"kusamachi/internal/matching"
 	"kusamachi/internal/persona"
+	"kusamachi/internal/photo"
 )
 
 // maxBodyBytes caps request bodies; every payload in this API is tiny.
@@ -29,16 +31,18 @@ type Handler struct {
 	clock    clock.Clock
 	gen      *persona.Generator
 	matching *matching.Service
+	photos   *photo.Store
 }
 
 // New builds the handler set.
-func New(pool *pgxpool.Pool, clk clock.Clock, gen *persona.Generator) *Handler {
+func New(pool *pgxpool.Pool, clk clock.Clock, gen *persona.Generator, photos *photo.Store) *Handler {
 	return &Handler{
 		pool:     pool,
 		q:        sqlc.New(pool),
 		clock:    clk,
 		gen:      gen,
 		matching: matching.NewService(pool),
+		photos:   photos,
 	}
 }
 
@@ -57,10 +61,11 @@ type personaCard struct {
 	Education    string    `json:"education"`
 	Hobby        *string   `json:"hobby,omitempty"`
 	Bio          *string   `json:"bio,omitempty"`
+	PhotoURL     *string   `json:"photo_url,omitempty"`
 }
 
 func newPersonaCard(p sqlc.Persona) personaCard {
-	return personaCard{
+	card := personaCard{
 		ID:           p.ID,
 		Name:         p.Name,
 		Age:          p.Age,
@@ -72,6 +77,14 @@ func newPersonaCard(p sqlc.Persona) personaCard {
 		Hobby:        p.Hobby,
 		Bio:          p.Bio,
 	}
+
+	// The version in the URL changes whenever the picture does, so the response
+	// can be cached hard without ever going stale.
+	if p.PhotoUpdatedAt != nil {
+		url := fmt.Sprintf("/api/personas/%s/photo?v=%d", p.ID, p.PhotoUpdatedAt.UnixMicro())
+		card.PhotoURL = &url
+	}
+	return card
 }
 
 // ownPersona loads today's persona for the participant, translating "missing"

@@ -16,6 +16,7 @@ type Config struct {
 	Addr        string
 	DatabaseURL string
 	WebDistDir  string
+	PhotoDir    string
 
 	// CookieSecure / CookieSameSite exist only so the app can be exercised over
 	// plain http on localhost. The spec's required production values are the
@@ -32,6 +33,7 @@ func Load() (Config, error) {
 		Addr:            env("ADDR", ":8080"),
 		DatabaseURL:     env("DATABASE_URL", "postgres://kusa:kusa@localhost:5433/kusamachi?sslmode=disable"),
 		WebDistDir:      env("WEB_DIST_DIR", "web/dist"),
+		PhotoDir:        env("PHOTO_DIR", "data/photos"),
 		CookieSecure:    true,
 		CookieSameSite:  http.SameSiteNoneMode,
 		CleanupInterval: time.Hour,

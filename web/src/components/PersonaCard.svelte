@@ -18,7 +18,7 @@
   {/if}
 
   <div class={styles.head}>
-    <Avatar {persona} size={isHero ? 96 : 52} />
+    <Avatar {persona} size={isHero ? 128 : 52} />
     <div class={styles.identity}>
       {#if persona.name}
         <h2 class={styles.name}>{persona.name}</h2>

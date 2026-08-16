@@ -16,3 +16,6 @@ web/.vite/
 .DS_Store
 .idea/
 .vscode/
+
+# Local photo uploads
+/data/

@@ -43,17 +43,18 @@ type Pass struct {
 }
 
 type Persona struct {
-	ID            uuid.UUID
-	ParticipantID uuid.UUID
-	Age           int16
-	Gender        string
-	HeightCm      int16
-	Education     string
-	Occupation    string
-	AnnualIncome  int32
-	Name          *string
-	Hobby         *string
-	Bio           *string
-	ExposureCount int32
-	CreatedAt     time.Time
+	ID             uuid.UUID
+	ParticipantID  uuid.UUID
+	Age            int16
+	Gender         string
+	HeightCm       int16
+	Education      string
+	Occupation     string
+	AnnualIncome   int32
+	Name           *string
+	Hobby          *string
+	Bio            *string
+	ExposureCount  int32
+	CreatedAt      time.Time
+	PhotoUpdatedAt *time.Time
 }

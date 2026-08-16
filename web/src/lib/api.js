@@ -20,17 +20,10 @@ export class ApiError extends Error {
   }
 }
 
-async function request(method, path, body) {
-  const headers = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+async function send(method, path, { headers = {}, body } = {}) {
   if (method !== 'GET') headers[CSRF_HEADER] = csrfToken ?? '';
 
-  const res = await fetch(path, {
-    method,
-    headers,
-    credentials: 'same-origin',
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const res = await fetch(path, { method, headers, credentials: 'same-origin', body });
 
   const text = await res.text();
   const payload = text ? JSON.parse(text) : null;
@@ -42,8 +35,18 @@ async function request(method, path, body) {
   return payload;
 }
 
+function request(method, path, body) {
+  return send(method, path, {
+    headers: body === undefined ? {} : { 'Content-Type': 'application/json' },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  });
+}
+
 export const api = {
   get: (path) => request('GET', path),
   post: (path, body) => request('POST', path, body ?? {}),
   patch: (path, body) => request('PATCH', path, body ?? {}),
+  delete: (path) => request('DELETE', path),
+  // Raw image bytes; the body is already a JPEG blob.
+  upload: (path, blob) => send('POST', path, { headers: { 'Content-Type': blob.type }, body: blob }),
 };

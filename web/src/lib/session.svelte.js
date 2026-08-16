@@ -102,6 +102,17 @@ export async function startNewLife() {
   return persona;
 }
 
+/** Uploads an already-resized JPEG blob as today's picture. */
+export async function uploadPhoto(blob) {
+  session.persona = await api.upload('/api/persona/photo', blob);
+  return session.persona;
+}
+
+export async function deletePhoto() {
+  session.persona = await api.delete('/api/persona/photo');
+  return session.persona;
+}
+
 export async function updateProfile(fields) {
   const persona = await api.patch('/api/persona/profile', fields);
   session.persona = persona;

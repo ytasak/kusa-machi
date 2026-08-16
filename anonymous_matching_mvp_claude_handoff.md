@@ -188,6 +188,7 @@ Editable any number of times during the day:
 - name
 - hobby
 - bio / one-line message
+- profile picture （2026-08-16 追加。§23 の Non-Goal から外した）
 
 Limits:
 - name: max 20 chars
@@ -209,10 +210,40 @@ Rules:
 
 If name/hobby/bio is unset, omit the field entirely from the rendered Persona card.
 
+## 5.3 Profile picture
+
+Optional. When unset, the card shows a plain default silhouette.
+
+Client:
+- center-crop to a square and scale to at most 1024px before uploading
+- this only keeps uploads small; it is never a security control
+
+Server (the only thing that is trusted):
+- accept JPEG and PNG, reject everything else
+- reject bodies over 8MB and images over 40 megapixels, the pixel check running
+  on the header before the image is decoded
+- always decode and re-encode as JPEG. This is what strips EXIF — an anonymous
+  app must never publish someone's GPS coordinates — and discards anything
+  smuggled alongside the pixels
+- store the long edge at 1024px
+
+Storage and lifetime:
+- files under `PHOTO_DIR`, one directory per `game_date`
+- the daily cleanup removes directories older than today, so pictures expire
+  with the rest of the day's data
+- pictures are served with `Content-Type: image/jpeg` and
+  `X-Content-Type-Options: nosniff`, and only for today's personas
+- a participant may delete their own picture at any time
+
+Known limitation, accepted for this MVP: there is no reporting flow and no
+moderation, so an uploaded picture is only removed by its owner or by the
+daily reset.
+
 ---
 
 # 6. Persona Card Display Order
 
+0. profile picture (default silhouette when unset)
 1. name (only when set)
 2. age + gender
 3. height
@@ -1200,7 +1231,6 @@ Do **not** implement unless required to make the core flow work:
 - NG-word dictionary
 - phone/email/SNS handle detection
 - long-lived profiles
-- profile photos
 - facial attractiveness score
 - "parent wealth" or similar additional stats
 

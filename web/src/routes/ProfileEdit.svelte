@@ -3,9 +3,11 @@
   import styles from './ProfileEdit.module.css';
   import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
-  import { session, updateProfile, withDayGuard } from '../lib/session.svelte.js';
+  import Avatar from '../components/Avatar.svelte';
+  import { session, updateProfile, uploadPhoto, deletePhoto, withDayGuard } from '../lib/session.svelte.js';
   import { goMyPage } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
+  import { prepareUpload } from '../lib/image.js';
 
   const LIMITS = { name: 20, hobby: 30, bio: 60 };
 
@@ -16,6 +18,41 @@
   let saving = $state(false);
   let error = $state(null);
   let saved = $state(false);
+
+  let fileInput;
+  let photoBusy = $state(false);
+  let photoError = $state(null);
+
+  async function onPickPhoto(event) {
+    const file = event.target.files?.[0];
+    // Let the same file be picked again after a failure.
+    event.target.value = '';
+    if (!file) return;
+
+    photoBusy = true;
+    photoError = null;
+    try {
+      // Resizing here only keeps the upload small; the server re-encodes it.
+      const blob = await prepareUpload(file);
+      await withDayGuard(() => uploadPhoto(blob));
+    } catch (e) {
+      photoError = e.name === 'ApiError' ? errorMessage(e) : '画像を読み込めませんでした。';
+    } finally {
+      photoBusy = false;
+    }
+  }
+
+  async function onRemovePhoto() {
+    photoBusy = true;
+    photoError = null;
+    try {
+      await withDayGuard(() => deletePhoto());
+    } catch (e) {
+      photoError = errorMessage(e);
+    } finally {
+      photoBusy = false;
+    }
+  }
 
   // The server counts characters, not bytes; [...s].length matches that.
   const lengths = $derived({
@@ -60,6 +97,28 @@
     <p class={styles.hint}>
       年齢・性別・身長・職業・年収・学歴は今日のあなたの設定です。変更はできません。
     </p>
+
+    <div class={styles.photoBlock}>
+      <Avatar persona={session.persona} size={84} />
+      <div class={styles.photoActions}>
+        <button class={ui.secondary} onclick={() => fileInput.click()} disabled={photoBusy}>
+          {session.persona.photo_url ? '写真を変更' : '写真を選ぶ'}
+        </button>
+        {#if session.persona.photo_url}
+          <button class={styles.remove} onclick={onRemovePhoto} disabled={photoBusy}>削除</button>
+        {/if}
+        <p class={styles.hint}>正方形に切り抜いて保存します。写真も0時に消えます。</p>
+      </div>
+      <input
+        class={styles.file}
+        type="file"
+        accept="image/jpeg,image/png,image/*"
+        bind:this={fileInput}
+        onchange={onPickPhoto}
+      />
+    </div>
+
+    {#if photoError}<p class={ui.error}>{photoError}</p>{/if}
 
     <form class={styles.form} onsubmit={save}>
       <div class={styles.field}>

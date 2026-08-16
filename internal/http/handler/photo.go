@@ -1,0 +1,128 @@
+package handler
+
+import (
+	"errors"
+	"net/http"
+	"strconv"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/google/uuid"
+	"github.com/jackc/pgx/v5"
+
+	"kusamachi/internal/apperr"
+	"kusamachi/internal/db/sqlc"
+	"kusamachi/internal/http/middleware"
+	"kusamachi/internal/http/response"
+	"kusamachi/internal/photo"
+)
+
+// UploadPhoto implements POST /api/persona/photo.
+//
+// The body is the raw image; the client resizes it first, and the server
+// re-encodes whatever arrives.
+func (h *Handler) UploadPhoto(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	s := middleware.SessionFrom(ctx)
+
+	self, err := h.ownPersona(ctx, s.Participant.ID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	body := http.MaxBytesReader(w, r.Body, photo.MaxUploadBytes)
+	if err := h.photos.Save(s.GameDate, self.ID, body); err != nil {
+		var maxErr *http.MaxBytesError
+		if errors.As(err, &maxErr) {
+			response.Fail(w, apperr.CodeInvalidProfileInput, "画像が大きすぎます")
+			return
+		}
+		response.Error(w, err)
+		return
+	}
+
+	if _, err := h.q.SetPersonaPhoto(ctx, self.ID); err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	updated, err := h.q.GetPersonaByID(ctx, self.ID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, newPersonaCard(updated))
+}
+
+// DeletePhoto implements DELETE /api/persona/photo, so a picture can be undone.
+func (h *Handler) DeletePhoto(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	s := middleware.SessionFrom(ctx)
+
+	self, err := h.ownPersona(ctx, s.Participant.ID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	if err := h.photos.Delete(s.GameDate, self.ID); err != nil {
+		response.Error(w, err)
+		return
+	}
+	if err := h.q.ClearPersonaPhoto(ctx, self.ID); err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	updated, err := h.q.GetPersonaByID(ctx, self.ID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	response.JSON(w, http.StatusOK, newPersonaCard(updated))
+}
+
+// GetPhoto implements GET /api/personas/{personaID}/photo.
+func (h *Handler) GetPhoto(w http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	s := middleware.SessionFrom(ctx)
+
+	personaID, err := uuid.Parse(chi.URLParam(r, "personaID"))
+	if err != nil {
+		response.Fail(w, apperr.CodeInvalidRequest, "persona_id must be a uuid")
+		return
+	}
+
+	// Only today's personas are visible, exactly like every other read.
+	target, err := h.q.GetActivePersona(ctx, sqlc.GetActivePersonaParams{
+		PersonaID: personaID,
+		GameDate:  s.GameDate,
+	})
+	if errors.Is(err, pgx.ErrNoRows) {
+		response.Error(w, apperr.TargetPersonaUnavailable)
+		return
+	}
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	if target.PhotoUpdatedAt == nil {
+		response.Error(w, apperr.TargetPersonaUnavailable)
+		return
+	}
+
+	file, err := h.photos.Open(s.GameDate, target.ID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+	defer file.Close()
+
+	w.Header().Set("Content-Type", photo.ContentType)
+	// The URL carries a version, so the bytes behind it never change.
+	w.Header().Set("Cache-Control", "private, max-age=86400")
+	// Belt and braces: never let a browser sniff this as anything but an image.
+	w.Header().Set("X-Content-Type-Options", "nosniff")
+
+	http.ServeContent(w, r, strconv.FormatInt(target.PhotoUpdatedAt.Unix(), 10)+".jpg", *target.PhotoUpdatedAt, file)
+}
