@@ -15,6 +15,9 @@
   --accent-strong: #ff2d55;
   --accent-soft: #ffecef;
   --accent-gradient: linear-gradient(135deg, #ff6b6b 0%, #ff2d7a 100%);
+  /* 下部ナビの主 CTA 用。既存のアクセントより橙寄りのコーラルにして、
+     ピンク系のボタンが並んでも「探す」だけが浮くようにする。 */
+  --accent-coral-gradient: linear-gradient(140deg, #ff8a63 0%, #ff4e64 100%);
 
   --radius-card: 20px;
   --radius-control: 14px;
@@ -23,6 +26,9 @@
 
   --header-height: 52px;
   --tabbar-height: 60px;
+  /* 下部ナビの「探す」がバーの上へせり出す高さ。せり出したぶんは
+     どの画面でも内容を避ける必要があるので、値をここで一元管理する。 */
+  --nav-lift: 20px;
 
   font-family: system-ui, -apple-system, 'Hiragino Sans', 'Noto Sans JP', sans-serif;
   line-height: 1.6;

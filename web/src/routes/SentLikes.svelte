@@ -1,10 +1,8 @@
 <script>
   import { onMount } from 'svelte';
   import ui from '../components/ui.module.css';
-  import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
   import { api } from '../lib/api.js';
-  import { goMyPage } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
   let personas = $state([]);
@@ -24,10 +22,8 @@
 </script>
 
 <section class={ui.screen}>
+  <!-- タブになったので戻る導線は持たない。他のタブ画面と同じ見出しにする。 -->
   <div class={ui.header}>
-    <button class={ui.back} onclick={goMyPage} aria-label="マイページに戻る">
-      <Icon name="back" size={18} />
-    </button>
     <h1 class={ui.title}>送信済みLike</h1>
   </div>
 
