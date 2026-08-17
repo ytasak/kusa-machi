@@ -1,14 +1,22 @@
+/* 下部ナビ。中央の「探す」だけが主 CTA で、左右のタブは従。
+   主従を色・大きさ・影で付けているので、両者を同じ強さで描かないこと。 */
+
 .bar {
   position: sticky;
   bottom: 0;
   z-index: 5;
   display: grid;
-  grid-template-columns: repeat(4, 1fr);
+  /* 左2 / 中央 / 右2。中央列だけボタン幅ぶんを取る。
+     minmax(0, 1fr) にしないと、ラベルの長いタブだけ列が広がって
+     左右の間隔がずれ、中央のボタンも真ん中から外れる。 */
+  grid-template-columns: repeat(2, minmax(0, 1fr)) auto repeat(2, minmax(0, 1fr));
   background: rgb(255 255 255 / 92%);
   backdrop-filter: blur(12px);
   border-top: 1px solid var(--border);
   padding-bottom: env(safe-area-inset-bottom, 0);
 }
+
+/* ---- 従: 左右のタブ ---- */
 
 .tab {
   position: relative;
@@ -20,13 +28,17 @@
   height: var(--tabbar-height);
   border: none;
   background: none;
+  /* 中央のコーラルと張り合わないよう、ここはニュートラルなグレーに抑える。 */
   color: var(--text-muted);
   font-size: 10.5px;
+  /* 幅の狭い端末でもラベルを2行に折らない。折れるとバーの高さが崩れる。 */
+  white-space: nowrap;
   cursor: pointer;
 }
 
+/* 選択中でもアクセント色は使わない。濃さだけで現在地を示す。 */
 .active {
-  color: var(--accent);
+  color: var(--text);
   font-weight: 700;
 }
 
@@ -39,4 +51,71 @@
   border-radius: 50%;
   background: var(--accent-strong);
   border: 2px solid #fff;
+}
+
+/* ---- 主: 中央の「探す」 ---- */
+
+.primary {
+  position: relative;
+  /* ボタン本体（56px）と白いふち（左右5px）が収まる最小限。広げると
+     幅の狭い端末で左右のタブがラベルを収めきれなくなる。 */
+  width: 78px;
+  height: var(--tabbar-height);
+  border: none;
+  background: none;
+  padding: 0;
+  cursor: pointer;
+}
+
+/* バーの上へせり出させることで、タブの1つではなく
+   独立した入口として読ませる。せり出し量は --nav-lift と一致させること。
+   ずれると、他の画面で確保している余白と合わなくなる。 */
+.primaryIcon {
+  position: absolute;
+  left: 50%;
+  /* 56px はこのボタン自身の大きさ。 */
+  bottom: calc(var(--tabbar-height) + var(--nav-lift) - 56px);
+  transform: translateX(-50%);
+  display: grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--accent-coral-gradient);
+  color: #fff;
+  /* 1つ目の影がバーから切り抜かれたような白いふちを作る。 */
+  box-shadow:
+    0 0 0 5px rgb(255 255 255 / 92%),
+    0 8px 20px rgb(255 90 80 / 42%);
+  transition: transform 120ms cubic-bezier(0.2, 0.9, 0.3, 1.4);
+}
+
+.primary:active .primaryIcon {
+  transform: translateX(-50%) scale(0.9);
+}
+
+/* 探す画面にいるあいだは、ふちの外にもう1枚薄いリングを重ねる。 */
+.primaryActive .primaryIcon {
+  box-shadow:
+    0 0 0 5px rgb(255 255 255 / 92%),
+    0 0 0 7px var(--accent-soft),
+    0 10px 24px rgb(255 90 80 / 48%);
+}
+
+.primaryLabel {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 7px;
+  font-size: 10.5px;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  color: var(--accent);
+  text-align: center;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .primaryIcon {
+    transition: none;
+  }
 }

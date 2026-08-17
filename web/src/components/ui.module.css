@@ -64,13 +64,15 @@
   cursor: default;
 }
 
-/* 探す画面の丸いアクションボタン。 */
+/* 探す画面の丸いアクションボタン。
+   下部ナビの「探す」も丸いコーラルのボタンなので、間隔を詰めると
+   2つが1組に見えてしまう。下側は広めにあける。 */
 .actions {
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 28px;
-  padding: 4px 0 8px;
+  padding: 4px 0 18px;
 }
 
 .circle {

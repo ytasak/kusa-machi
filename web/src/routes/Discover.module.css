@@ -3,7 +3,7 @@
   flex-direction: column;
   gap: 14px;
   padding: 16px 16px 20px;
-  min-height: calc(100dvh - var(--header-height) - var(--tabbar-height));
+  min-height: calc(100dvh - var(--header-height) - var(--tabbar-height) - var(--nav-lift));
 }
 
 .topRow {

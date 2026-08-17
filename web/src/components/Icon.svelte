@@ -23,6 +23,9 @@
     />
   {:else if name === 'sparkle'}
     <path d="M12 2.5l2.3 6.2 6.2 2.3-6.2 2.3L12 19.5l-2.3-6.2L3.5 11l6.2-2.3L12 2.5z" />
+  {:else if name === 'send'}
+    <path d="M20.5 3.5L10.6 13.4" fill="none" />
+    <path d="M20.5 3.5l-6.2 17-3.7-7.1-7.1-3.7 17-6.2z" />
   {:else if name === 'person'}
     <circle cx="12" cy="8" r="4" fill="none" />
     <path d="M4.5 21c0-4.1 3.4-7.5 7.5-7.5s7.5 3.4 7.5 7.5" />

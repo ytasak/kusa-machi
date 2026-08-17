@@ -55,11 +55,8 @@
     <p class={ui.notice}><Icon name="sparkle" size={15} filled />新しいMatchがあります！</p>
   {/if}
 
+  <!-- 送信済みLike は下部ナビのタブに昇格したので、ここには置かない。 -->
   <div class={styles.menu}>
-    <button class={styles.menuItem} onclick={() => go(SCREENS.sentLikes)}>
-      送信済みLike
-      <span class={styles.chevron}><Icon name="chevron" size={18} /></span>
-    </button>
     <button class={styles.menuItem} onclick={() => go(SCREENS.profile)}>
       プロフィール編集
       <span class={styles.chevron}><Icon name="chevron" size={18} /></span>
