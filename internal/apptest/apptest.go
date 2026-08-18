@@ -190,8 +190,10 @@ type HomeResponse struct {
 	MatchCount        int64        `json:"match_count"`
 	HasUnseenLikes    bool         `json:"has_unseen_likes"`
 	HasUnseenMatches  bool         `json:"has_unseen_matches"`
-	CSRFToken         string       `json:"csrf_token"`
-	CookieReceived    bool         `json:"cookie_received"`
+
+	ProfileRewardAvailable bool   `json:"profile_reward_available"`
+	CSRFToken              string `json:"csrf_token"`
+	CookieReceived         bool   `json:"cookie_received"`
 }
 
 // PersonaCard は公開 Persona のペイロードに対応する。
@@ -267,7 +269,16 @@ type LikeResponse struct {
 	RemainingLikes int          `json:"remaining_likes"`
 	Matched        bool         `json:"matched"`
 	MatchID        *string      `json:"match_id"`
+	LikesGained    int          `json:"likes_gained"`
 	TargetPersona  *PersonaCard `json:"target_persona"`
+}
+
+// ProfileUpdateResponse は PATCH /api/persona/profile に対応する。
+type ProfileUpdateResponse struct {
+	Persona                PersonaCard `json:"persona"`
+	RemainingLikes         int         `json:"remaining_likes"`
+	LikesGained            int         `json:"likes_gained"`
+	ProfileRewardAvailable bool        `json:"profile_reward_available"`
 }
 
 // PassResponse は POST /api/passes に対応する。
@@ -310,6 +321,34 @@ func (c *Client) MustPass(t *testing.T, personaID string) PassResponse {
 	return out
 }
 
+// UpdateProfile は結果を検証せずに B属性を保存する。
+func (c *Client) UpdateProfile(t *testing.T, fields map[string]any) *Response {
+	t.Helper()
+	return c.Do(t, http.MethodPatch, "/api/persona/profile", fields)
+}
+
+// MustUpdateProfile は保存を送り、成功することを要求する。
+func (c *Client) MustUpdateProfile(t *testing.T, fields map[string]any) ProfileUpdateResponse {
+	t.Helper()
+	res := c.UpdateProfile(t, fields)
+	res.RequireStatus(t, http.StatusOK)
+
+	var out ProfileUpdateResponse
+	res.Decode(t, &out)
+	return out
+}
+
+// CompleteProfile は3つの B属性をすべて埋める。プロフィール完成報酬の
+// 条件をちょうど満たす操作。
+func (c *Client) CompleteProfile(t *testing.T) ProfileUpdateResponse {
+	t.Helper()
+	return c.MustUpdateProfile(t, map[string]any{
+		"name":  "さとし",
+		"hobby": "散歩",
+		"bio":   "よろしく",
+	})
+}
+
 // Discover は候補のバッチを取得する。除外 id を指定することもできる。
 func (c *Client) Discover(t *testing.T, exclude ...string) DiscoverResponse {
 	t.Helper()
@@ -335,6 +374,38 @@ func (a *App) ExposureCount(t *testing.T, personaID string) int {
 		t.Fatalf("read exposure_count: %v", err)
 	}
 	return count
+}
+
+// RewardState は Like 回復の当日状態をデータベースから直接読む。
+// API はこれらを公開しないので、二重付与の検証にはこの覗き穴を使う。
+type RewardState struct {
+	BonusLikes           int
+	ProfileRewardClaimed bool
+	MatchRewardCount     int
+}
+
+// RewardState は Persona の回復状態を返す。
+func (a *App) RewardState(t *testing.T, personaID string) RewardState {
+	t.Helper()
+	var out RewardState
+	err := a.Pool.QueryRow(t.Context(),
+		`SELECT bonus_likes, profile_reward_claimed, match_reward_count
+		   FROM personas WHERE id = $1`, personaID,
+	).Scan(&out.BonusLikes, &out.ProfileRewardClaimed, &out.MatchRewardCount)
+	if err != nil {
+		t.Fatalf("read reward state: %v", err)
+	}
+	return out
+}
+
+// SpendLikes は n 回 Like を消費させる。回復の余地を作るための下準備。
+// 相手はこのために用意した使い捨ての Persona で、Match は起きない。
+func (a *App) SpendLikes(t *testing.T, spender *Client, n int) {
+	t.Helper()
+	_, targets := a.NewStartedClients(t, n)
+	for _, target := range targets {
+		spender.MustLike(t, target.ID)
+	}
 }
 
 // CountRows はテーブルの全行を数える。API からは見えない不変条件の確認用。

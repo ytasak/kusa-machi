@@ -4,7 +4,7 @@
   import ui from '../components/ui.module.css';
   import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
-  import { session, refreshHome, LIKE_BUDGET } from '../lib/session.svelte.js';
+  import { session, refreshHome, LIKE_CAP } from '../lib/session.svelte.js';
   import { go, SCREENS } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
@@ -36,7 +36,7 @@
   <div class={styles.stats}>
     <div class={styles.stat}>
       <span class={styles.statLabel}>残りLike</span>
-      <span class={styles.statValue}>{session.remainingLikes} / {LIKE_BUDGET}</span>
+      <span class={styles.statValue}>{session.remainingLikes} / {LIKE_CAP}</span>
     </div>
     <div class={styles.stat}>
       <span class={styles.statLabel}>Likeされた</span>
@@ -47,6 +47,16 @@
       <span class={styles.statValue}>{session.matchCount}</span>
     </div>
   </div>
+
+  <!-- 報酬は完成させた後にしか見えないと気づけない。残りLike のすぐ下に置いて、
+       「何をすれば増えるのか」を数字と並べて示す。押すとそのまま編集画面へ。 -->
+  {#if session.profileRewardAvailable}
+    <button class={styles.reward} onclick={() => go(SCREENS.profile)}>
+      <Icon name="heart" size={15} filled />
+      <span class={styles.rewardText}>プロフィールを完成させると <strong>Like +1</strong></span>
+      <span class={styles.chevron}><Icon name="chevron" size={18} /></span>
+    </button>
+  {/if}
 
   {#if session.hasUnseenLikes}
     <p class={ui.notice}><Icon name="heart" size={15} filled />新しいLikeがあります</p>

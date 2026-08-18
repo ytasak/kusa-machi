@@ -17,10 +17,13 @@ type targetRequest struct {
 }
 
 type likeResponse struct {
-	RemainingLikes int          `json:"remaining_likes"`
-	Matched        bool         `json:"matched"`
-	MatchID        *uuid.UUID   `json:"match_id,omitempty"`
-	TargetPersona  *personaCard `json:"target_persona,omitempty"`
+	RemainingLikes int        `json:"remaining_likes"`
+	Matched        bool       `json:"matched"`
+	MatchID        *uuid.UUID `json:"match_id,omitempty"`
+	// LikesGained は Match 報酬で実際に増えた Like の数。0 のときは画面が
+	// 回復の表示を省くので、所持上限で何も増えなかった Match は静かに終わる。
+	LikesGained   int          `json:"likes_gained"`
+	TargetPersona *personaCard `json:"target_persona,omitempty"`
 }
 
 type passResponse struct {
@@ -48,6 +51,7 @@ func (h *Handler) CreateLike(w http.ResponseWriter, r *http.Request) {
 	resp := likeResponse{
 		RemainingLikes: result.RemainingLikes,
 		Matched:        result.Matched,
+		LikesGained:    result.LikesGained,
 	}
 	if result.Matched {
 		// Match アニメーションは相手のカードを即座に必要とする。

@@ -26,6 +26,31 @@
   line-height: 1.4;
 }
 
+/* 未取得の報酬の訴求。
+   「新しいLikeがあります」などの通知（.notice）と塗りを揃えると、ピンクの帯が
+   何本も並んで見分けがつかなくなる。あちらは状態の知らせ、こちらは押させたい
+   誘導なので、カードと同じ白地に枠を足して押せるものとして見せる。 */
+.reward {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  border: 1px solid var(--accent);
+  border-radius: 12px;
+  background: var(--surface);
+  color: var(--accent-strong);
+  padding: 11px 12px;
+  font-size: 13.5px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+  box-shadow: var(--shadow-card);
+}
+
+.rewardText {
+  flex: 1;
+}
+
 .menu {
   display: flex;
   flex-direction: column;

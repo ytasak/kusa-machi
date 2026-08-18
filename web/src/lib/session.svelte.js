@@ -6,8 +6,16 @@ import { api, ApiError, setCsrfToken } from './api.js';
 import { resetDiscover } from './discover.svelte.js';
 import { errorMessage } from './errors.js';
 
-/** 1日の Like 予算。サーバ側の matching.DailyLikeBudget と一致させる。 */
+/** 1日の開始時に持つ Like。サーバ側の matching.DailyLikeBudget と一致させる。 */
 export const LIKE_BUDGET = 10;
+
+/**
+ * Like の所持上限。サーバ側の matching.LikeCap と一致させる。
+ *
+ * 残数の分母にはこちらを使う。予算 10 を分母にすると、回復で 11 や 12 に
+ * なったときに「11 / 10」と出てしまう。
+ */
+export const LIKE_CAP = 12;
 
 export const session = $state({
   loading: true,
@@ -22,6 +30,9 @@ export const session = $state({
   matchCount: 0,
   hasUnseenLikes: false,
   hasUnseenMatches: false,
+
+  /** プロフィール完成で Like が回復する状態か。事前の訴求を出すかの判断に使う。 */
+  profileRewardAvailable: false,
 
   /** ブラウザの時計に足すとサーバ時刻になるミリ秒。 */
   clockOffsetMs: 0,
@@ -70,6 +81,7 @@ function applyHome(home) {
   session.matchCount = home.match_count;
   session.hasUnseenLikes = home.has_unseen_likes;
   session.hasUnseenMatches = home.has_unseen_matches;
+  session.profileRewardAvailable = home.profile_reward_available;
   session.dayEnded = false;
 
   setCsrfToken(home.csrf_token);
@@ -133,10 +145,19 @@ export async function deletePhoto() {
   return session.persona;
 }
 
+/**
+ * B属性を保存する。
+ *
+ * 応答にはプロフィール完成報酬で回復した Like 数も入っている。残数は
+ * サーバの値でそのまま上書きし、回復した数だけを呼び出し元に返す。
+ */
 export async function updateProfile(fields) {
-  const persona = await api.patch('/api/persona/profile', fields);
-  session.persona = persona;
-  return persona;
+  const res = await api.patch('/api/persona/profile', fields);
+  session.persona = res.persona;
+  session.remainingLikes = res.remaining_likes;
+  // 受け取り済みになったら、その場で訴求を引っ込める。
+  session.profileRewardAvailable = res.profile_reward_available;
+  return res.likes_gained;
 }
 
 /** カウントダウンが0になったとき、または API が DayExpired を返したときに呼ぶ。 */

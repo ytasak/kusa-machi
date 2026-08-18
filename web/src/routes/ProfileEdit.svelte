@@ -18,6 +18,8 @@
   let saving = $state(false);
   let error = $state(null);
   let saved = $state(false);
+  /** プロフィール完成報酬で回復した Like 数。0 のときは何も出さない。 */
+  let likesGained = $state(0);
 
   let fileInput;
   let photoBusy = $state(false);
@@ -70,8 +72,11 @@
     saving = true;
     error = null;
     saved = false;
+    likesGained = 0;
     try {
-      await withDayGuard(() => updateProfile({ name, hobby, bio }));
+      // 3項目がそろった保存で Like が回復する。判定はサーバ側なので、
+      // ここは返ってきた数をそのまま出すだけ。
+      likesGained = await withDayGuard(() => updateProfile({ name, hobby, bio }));
       name = session.persona.name ?? '';
       hobby = session.persona.hobby ?? '';
       bio = session.persona.bio ?? '';
@@ -123,6 +128,15 @@
 
     {#if photoError}<p class={ui.error}>{photoError}</p>{/if}
 
+    <!-- 編集の手前に条件を出す。3つ埋めれば回復すると分かっていないと、
+         そもそも埋める理由が伝わらない。 -->
+    {#if session.profileRewardAvailable}
+      <p class={ui.notice}>
+        <Icon name="heart" size={15} filled />
+        名前・趣味・ひとことをすべて埋めると Like +1（1日1回）
+      </p>
+    {/if}
+
     <form class={styles.form} onsubmit={save}>
       <div class={styles.field}>
         <div class={styles.labelRow}>
@@ -157,7 +171,11 @@
       <p class={styles.hint}>すべて任意です。空欄にするとカードに表示されません。URLは登録できません。</p>
 
       {#if error}<p class={ui.error}>{error}</p>{/if}
-      {#if saved}<p class={styles.saved}>保存しました</p>{/if}
+      {#if likesGained > 0}
+        <p class={ui.notice}><Icon name="heart" size={15} filled />プロフィール完成！ Like +{likesGained}</p>
+      {:else if saved}
+        <p class={styles.saved}>保存しました</p>
+      {/if}
 
       <button class={ui.primary} type="submit" disabled={saving || tooLong}>保存する</button>
     </form>

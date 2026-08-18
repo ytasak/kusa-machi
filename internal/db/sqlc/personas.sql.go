@@ -12,6 +12,75 @@ import (
 	"github.com/google/uuid"
 )
 
+const claimMatchReward = `-- name: ClaimMatchReward :one
+UPDATE personas
+SET bonus_likes = bonus_likes + $1,
+    match_reward_count = match_reward_count + 1
+WHERE id = $2
+RETURNING bonus_likes
+`
+
+type ClaimMatchRewardParams struct {
+	Amount int16
+	ID     uuid.UUID
+}
+
+// Match 報酬の付与。回数は1日2回で打ち止めなので、上限判定を済ませた
+// 呼び出し側だけがこれを実行する。amount が 0 でも回数は消費する。
+//
+// Like のトランザクションが lockPair でこの行を FOR UPDATE しているため、
+// 同時 Like でも回数が2を超えることはない。
+func (q *Queries) ClaimMatchReward(ctx context.Context, arg ClaimMatchRewardParams) (int16, error) {
+	row := q.db.QueryRow(ctx, claimMatchReward, arg.Amount, arg.ID)
+	var bonus_likes int16
+	err := row.Scan(&bonus_likes)
+	return bonus_likes, err
+}
+
+const claimProfileReward = `-- name: ClaimProfileReward :one
+UPDATE personas
+SET bonus_likes = bonus_likes + $1,
+    profile_reward_claimed = TRUE
+WHERE id = $2
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count
+`
+
+type ClaimProfileRewardParams struct {
+	Amount int16
+	ID     uuid.UUID
+}
+
+// プロフィール完成報酬の付与。amount は所持上限で切り詰めた「実際に増える数」で、
+// 上限に達していて 0 のときも受け取り済みにする。仕様どおり溢れた分は失われ、
+// 同じ日にもう一度もらえることはない。
+//
+// 呼び出し側は LockPersona でこの行を押さえてから、フラグを読んで amount を
+// 決める。よってページ再読み込みや同じ PATCH の再送では二度目の付与が起きない。
+func (q *Queries) ClaimProfileReward(ctx context.Context, arg ClaimProfileRewardParams) (Persona, error) {
+	row := q.db.QueryRow(ctx, claimProfileReward, arg.Amount, arg.ID)
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipantID,
+		&i.Age,
+		&i.Gender,
+		&i.HeightCm,
+		&i.Education,
+		&i.Occupation,
+		&i.AnnualIncome,
+		&i.Name,
+		&i.Hobby,
+		&i.Bio,
+		&i.ExposureCount,
+		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
+		&i.BonusLikes,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
+	)
+	return i, err
+}
+
 const clearPersonaPhoto = `-- name: ClearPersonaPhoto :exec
 UPDATE personas SET photo_updated_at = NULL WHERE id = $1
 `
@@ -22,7 +91,7 @@ func (q *Queries) ClearPersonaPhoto(ctx context.Context, id uuid.UUID) error {
 }
 
 const getActivePersona = `-- name: GetActivePersona :one
-SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at FROM personas p
+SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.bonus_likes, p.profile_reward_claimed, p.match_reward_count FROM personas p
 JOIN participants pa ON pa.id = p.participant_id
 WHERE p.id = $1 AND pa.game_date = $2
 `
@@ -51,13 +120,16 @@ func (q *Queries) GetActivePersona(ctx context.Context, arg GetActivePersonaPara
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
+		&i.BonusLikes,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
 	)
 	return i, err
 }
 
 const getHomeState = `-- name: GetHomeState :one
 SELECT
-    p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at,
+    p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.bonus_likes, p.profile_reward_claimed, p.match_reward_count,
     (SELECT COUNT(*) FROM likes l WHERE l.from_persona_id = p.id) AS likes_sent,
     (SELECT COUNT(*) FROM likes l WHERE l.to_persona_id = p.id) AS likes_received,
     (
@@ -113,6 +185,9 @@ func (q *Queries) GetHomeState(ctx context.Context, arg GetHomeStateParams) (Get
 		&i.Persona.ExposureCount,
 		&i.Persona.CreatedAt,
 		&i.Persona.PhotoUpdatedAt,
+		&i.Persona.BonusLikes,
+		&i.Persona.ProfileRewardClaimed,
+		&i.Persona.MatchRewardCount,
 		&i.LikesSent,
 		&i.LikesReceived,
 		&i.MatchCount,
@@ -123,7 +198,7 @@ func (q *Queries) GetHomeState(ctx context.Context, arg GetHomeStateParams) (Get
 }
 
 const getPersonaByID = `-- name: GetPersonaByID :one
-SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at FROM personas WHERE id = $1
+SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count FROM personas WHERE id = $1
 `
 
 func (q *Queries) GetPersonaByID(ctx context.Context, id uuid.UUID) (Persona, error) {
@@ -144,12 +219,15 @@ func (q *Queries) GetPersonaByID(ctx context.Context, id uuid.UUID) (Persona, er
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
+		&i.BonusLikes,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
 	)
 	return i, err
 }
 
 const getPersonaByParticipant = `-- name: GetPersonaByParticipant :one
-SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at FROM personas WHERE participant_id = $1
+SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count FROM personas WHERE participant_id = $1
 `
 
 func (q *Queries) GetPersonaByParticipant(ctx context.Context, participantID uuid.UUID) (Persona, error) {
@@ -170,6 +248,9 @@ func (q *Queries) GetPersonaByParticipant(ctx context.Context, participantID uui
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
+		&i.BonusLikes,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
 	)
 	return i, err
 }
@@ -191,7 +272,7 @@ INSERT INTO personas (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (participant_id)
 DO UPDATE SET participant_id = personas.participant_id
-RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count
 `
 
 type InsertPersonaParams struct {
@@ -234,22 +315,46 @@ func (q *Queries) InsertPersona(ctx context.Context, arg InsertPersonaParams) (P
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
+		&i.BonusLikes,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
 	)
 	return i, err
 }
 
 const lockPersona = `-- name: LockPersona :one
-SELECT id FROM personas WHERE id = $1 FOR UPDATE
+SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count FROM personas WHERE id = $1 FOR UPDATE
 `
 
-// Like / Pass トランザクションを直列化する。呼び出し側は必ずペアを正規化した
-// (low, high) の順でロックする。これにより Like 予算の正しさと相互Like検出の
-// 確実性を同時に満たし、かつデッドロックが起きない。
-func (q *Queries) LockPersona(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+// Like / Pass / プロフィール更新のトランザクションを直列化する。Like と Pass は
+// 必ずペアを正規化した (low, high) の順でロックする。これにより Like 予算の
+// 正しさと相互Like検出の確実性を同時に満たし、かつデッドロックが起きない。
+//
+// 行全体を返すのは、報酬の受け取り状態をロックの内側で読み直すため。
+// トランザクションの外で読んだ persona は、並行して回復が入っていると古い。
+func (q *Queries) LockPersona(ctx context.Context, id uuid.UUID) (Persona, error) {
 	row := q.db.QueryRow(ctx, lockPersona, id)
-	var id_2 uuid.UUID
-	err := row.Scan(&id_2)
-	return id_2, err
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipantID,
+		&i.Age,
+		&i.Gender,
+		&i.HeightCm,
+		&i.Education,
+		&i.Occupation,
+		&i.AnnualIncome,
+		&i.Name,
+		&i.Hobby,
+		&i.Bio,
+		&i.ExposureCount,
+		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
+		&i.BonusLikes,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
+	)
+	return i, err
 }
 
 const setPersonaPhoto = `-- name: SetPersonaPhoto :one
@@ -267,7 +372,7 @@ const updatePersonaProfile = `-- name: UpdatePersonaProfile :one
 UPDATE personas
 SET name = $2, hobby = $3, bio = $4
 WHERE id = $1
-RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count
 `
 
 type UpdatePersonaProfileParams struct {
@@ -300,6 +405,9 @@ func (q *Queries) UpdatePersonaProfile(ctx context.Context, arg UpdatePersonaPro
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
+		&i.BonusLikes,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
 	)
 	return i, err
 }

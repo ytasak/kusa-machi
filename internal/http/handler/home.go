@@ -24,7 +24,11 @@ type homeResponse struct {
 	MatchCount        int64        `json:"match_count"`
 	HasUnseenLikes    bool         `json:"has_unseen_likes"`
 	HasUnseenMatches  bool         `json:"has_unseen_matches"`
-	CSRFToken         string       `json:"csrf_token"`
+	// ProfileRewardAvailable は「プロフィールを完成させれば Like が回復する」
+	// 状態か。画面はこれを見て事前の訴求を出す。受け取り済みなら false になり、
+	// 取れない報酬を誘導しないで済む。
+	ProfileRewardAvailable bool   `json:"profile_reward_available"`
+	CSRFToken              string `json:"csrf_token"`
 	// CookieReceived が2回続けて false なら、ブラウザが Cookie を保存して
 	// いない。iframe 埋め込み時にサードパーティ Cookie を遮断されると起きる。
 	CookieReceived bool `json:"cookie_received"`
@@ -65,11 +69,12 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	card := newPersonaCard(state.Persona)
 	resp.PersonaGenerated = true
 	resp.Persona = &card
-	resp.RemainingLikes = matching.RemainingLikes(state.LikesSent)
+	resp.RemainingLikes = matching.RemainingLikes(state.LikesSent, state.Persona.BonusLikes)
 	resp.ReceivedLikeCount = state.LikesReceived
 	resp.MatchCount = state.MatchCount
 	resp.HasUnseenLikes = state.HasUnseenLikes
 	resp.HasUnseenMatches = state.HasUnseenMatches
+	resp.ProfileRewardAvailable = !state.Persona.ProfileRewardClaimed
 
 	response.JSON(w, http.StatusOK, resp)
 }

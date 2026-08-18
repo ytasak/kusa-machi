@@ -21,10 +21,13 @@ JOIN participants pa ON pa.id = p.participant_id
 WHERE p.id = sqlc.arg('persona_id') AND pa.game_date = sqlc.arg('game_date');
 
 -- name: LockPersona :one
--- Like / Pass トランザクションを直列化する。呼び出し側は必ずペアを正規化した
--- (low, high) の順でロックする。これにより Like 予算の正しさと相互Like検出の
--- 確実性を同時に満たし、かつデッドロックが起きない。
-SELECT id FROM personas WHERE id = $1 FOR UPDATE;
+-- Like / Pass / プロフィール更新のトランザクションを直列化する。Like と Pass は
+-- 必ずペアを正規化した (low, high) の順でロックする。これにより Like 予算の
+-- 正しさと相互Like検出の確実性を同時に満たし、かつデッドロックが起きない。
+--
+-- 行全体を返すのは、報酬の受け取り状態をロックの内側で読み直すため。
+-- トランザクションの外で読んだ persona は、並行して回復が入っていると古い。
+SELECT * FROM personas WHERE id = $1 FOR UPDATE;
 
 -- name: IncrementExposure :exec
 -- exposure は「実際に評価されたプロフィール」を数える。よって Like か Pass が
@@ -66,3 +69,28 @@ SELECT
     ) AS has_unseen_matches
 FROM personas p
 WHERE p.participant_id = sqlc.arg('participant_id');
+
+-- name: ClaimProfileReward :one
+-- プロフィール完成報酬の付与。amount は所持上限で切り詰めた「実際に増える数」で、
+-- 上限に達していて 0 のときも受け取り済みにする。仕様どおり溢れた分は失われ、
+-- 同じ日にもう一度もらえることはない。
+--
+-- 呼び出し側は LockPersona でこの行を押さえてから、フラグを読んで amount を
+-- 決める。よってページ再読み込みや同じ PATCH の再送では二度目の付与が起きない。
+UPDATE personas
+SET bonus_likes = bonus_likes + sqlc.arg('amount'),
+    profile_reward_claimed = TRUE
+WHERE id = sqlc.arg('id')
+RETURNING *;
+
+-- name: ClaimMatchReward :one
+-- Match 報酬の付与。回数は1日2回で打ち止めなので、上限判定を済ませた
+-- 呼び出し側だけがこれを実行する。amount が 0 でも回数は消費する。
+--
+-- Like のトランザクションが lockPair でこの行を FOR UPDATE しているため、
+-- 同時 Like でも回数が2を超えることはない。
+UPDATE personas
+SET bonus_likes = bonus_likes + sqlc.arg('amount'),
+    match_reward_count = match_reward_count + 1
+WHERE id = sqlc.arg('id')
+RETURNING bonus_likes;

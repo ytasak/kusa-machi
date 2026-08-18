@@ -33,3 +33,25 @@ func (q *Queries) InsertMatch(ctx context.Context, arg InsertMatchParams) (uuid.
 	err := row.Scan(&id)
 	return id, err
 }
+
+const matchExists = `-- name: MatchExists :one
+SELECT EXISTS (
+    SELECT 1 FROM matches
+    WHERE persona_low_id = $1
+      AND persona_high_id = $2
+) AS match_exists
+`
+
+type MatchExistsParams struct {
+	PersonaLowID  uuid.UUID
+	PersonaHighID uuid.UUID
+}
+
+// 正規化済みペアの Match がすでにあるか。Match 報酬を同じ Match に対して
+// 二度払わないための判定に使う。
+func (q *Queries) MatchExists(ctx context.Context, arg MatchExistsParams) (bool, error) {
+	row := q.db.QueryRow(ctx, matchExists, arg.PersonaLowID, arg.PersonaHighID)
+	var match_exists bool
+	err := row.Scan(&match_exists)
+	return match_exists, err
+}

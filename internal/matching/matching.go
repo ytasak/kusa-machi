@@ -1,5 +1,5 @@
-// Package matching は市場のルールを持つ。1日の Like 予算、Pass の上限、
-// および Match を保存する際の正規化済み Persona ペアを扱う。
+// Package matching は市場のルールを持つ。1日の Like 予算、回復報酬と所持上限、
+// Pass の上限、および Match を保存する際の正規化済み Persona ペアを扱う。
 package matching
 
 import (
@@ -8,9 +8,26 @@ import (
 	"github.com/google/uuid"
 )
 
-// DailyLikeBudget は各 Persona がゲーム日ごとに得る Like の数。
+// DailyLikeBudget は各 Persona がゲーム日の開始時に得る Like の数。
 // Like へのお返しも同じ予算を消費し、別枠は存在しない。
 const DailyLikeBudget = 10
+
+// LikeCap は現在の所持数の上限。回復がこれを超える分は失われる。
+// 予算より少しだけ大きい。回復に意味を持たせつつ、Like を貯め込めないようにする。
+const LikeCap = 12
+
+// 回復報酬。Like が希少なままであるよう、どちらもごく少量にしてある。
+const (
+	// ProfileCompletionReward は名前・趣味・一言をすべて埋めたときの回復量。1日1回。
+	ProfileCompletionReward = 1
+
+	// MatchReward は Match が1つ成立したときの回復量。
+	MatchReward = 2
+
+	// MaxMatchRewards は Match 報酬を受け取れる1日の回数。ここで打ち止めにするので、
+	// Match が増えるほど Like が増え続けるという正のフィードバックは起きない。
+	MaxMatchRewards = 2
+)
 
 // MaxPassCount は、相手がその日の表示対象から外れる Pass 回数。
 const MaxPassCount = 3
@@ -26,10 +43,36 @@ func NormalizePair(a, b uuid.UUID) (low, high uuid.UUID) {
 }
 
 // RemainingLikes は残り予算を負にならないよう丸める。
-func RemainingLikes(sent int64) int {
-	remaining := DailyLikeBudget - int(sent)
+//
+// bonus は回復報酬で上乗せされた累計。付与の時点で所持上限に切り詰めてあるので、
+// ここでもう一度上限を当てる必要はない。
+func RemainingLikes(sent int64, bonus int16) int {
+	remaining := DailyLikeBudget + int(bonus) - int(sent)
 	if remaining < 0 {
 		return 0
 	}
 	return remaining
+}
+
+// GrantableLikes は報酬のうち実際に回復できる数を返す。
+//
+// 所持上限に収まらない分は捨てる。呼び出し側はこの戻り値をそのまま
+// bonus_likes に足すので、失われた分が後から復活することはない。
+// 上限に達していれば 0 を返すが、それでも報酬の受け取り枠は消費される。
+func GrantableLikes(current, reward int) int {
+	room := LikeCap - current
+	if room <= 0 {
+		return 0
+	}
+	if reward < room {
+		return reward
+	}
+	return room
+}
+
+// ProfileComplete は Like 回復の対象になる「プロフィールを整えた」状態か。
+// 3つの B属性がすべて埋まっていることを求める。値は検証済みで、空白だけの
+// 入力はすでに未設定に正規化されている。
+func ProfileComplete(name, hobby, bio *string) bool {
+	return name != nil && hobby != nil && bio != nil
 }
