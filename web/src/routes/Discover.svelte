@@ -6,7 +6,7 @@
   import PersonaCard from '../components/PersonaCard.svelte';
   import MatchAnimation from '../components/MatchAnimation.svelte';
   import { api, ApiError } from '../lib/api.js';
-  import { session, withDayGuard, LIKE_BUDGET } from '../lib/session.svelte.js';
+  import { session, withDayGuard, LIKE_CAP } from '../lib/session.svelte.js';
   import { discover, currentCard, consumeCurrent, ensureCards } from '../lib/discover.svelte.js';
   import { errorMessage } from '../lib/errors.js';
   import { vibrate, HAPTICS } from '../lib/haptics.js';
@@ -18,6 +18,8 @@
   /** 送り出し中のカード: { persona, kind, seq } */
   let exiting = $state(null);
   let matchedPersona = $state(null);
+  /** 直近の Match で回復した Like 数。演出の中に出す。 */
+  let matchedLikesGained = $state(0);
 
   const card = $derived(currentCard());
   const outOfLikes = $derived(session.remainingLikes <= 0);
@@ -74,6 +76,7 @@
       if (res.matched) {
         session.matchCount += 1;
         matchedPersona = res.target_persona;
+        matchedLikesGained = res.likes_gained;
         vibrate(HAPTICS.match);
       }
     } catch (e) {
@@ -87,7 +90,7 @@
     if (e instanceof ApiError && e.code === 'LikeLimitExceeded') {
       session.remainingLikes = 0;
     } else {
-      session.remainingLikes = Math.min(LIKE_BUDGET, session.remainingLikes + 1);
+      session.remainingLikes = Math.min(LIKE_CAP, session.remainingLikes + 1);
     }
 
     if (!(e instanceof ApiError) || !STALE_CODES.has(e.code)) {
@@ -189,6 +192,7 @@
   <MatchAnimation
     own={session.persona}
     counterpart={matchedPersona}
+    likesGained={matchedLikesGained}
     onclose={() => (matchedPersona = null)}
   />
 {/if}

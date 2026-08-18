@@ -3,7 +3,9 @@
   import PersonaCard from './PersonaCard.svelte';
 
   // 仕様の Match アニメーションが求めるとおり、両者の Persona を並べて見せる。
-  let { own, counterpart, onclose } = $props();
+  // likesGained は Match 報酬で実際に増えた Like の数。所持上限で何も増えな
+  // かったときは 0 で来るので、その場合は回復の行を出さない。
+  let { own, counterpart, likesGained = 0, onclose } = $props();
 
   const SHAPES = ['♥', '♥', '♥', '✦', '★'];
   const COLORS = ['#ff5470', '#ffd166', '#ff8fae', '#66e0ff', '#fff', '#ffb03a'];
@@ -44,6 +46,10 @@
   <div class={styles.panel}>
     <p class={styles.title}>MATCH!</p>
     <p class={styles.copy}>今日の人生でマッチしました</p>
+
+    {#if likesGained > 0}
+      <p class={styles.reward}>Match成立！ Like +{likesGained}</p>
+    {/if}
 
     <div class={styles.pair}>
       {#if own}
