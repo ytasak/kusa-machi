@@ -26,6 +26,14 @@ export const session = $state({
   persona: null,
 
   remainingLikes: 10,
+  /**
+   * 次に時間回復が起きる時刻（ミリ秒）。タイマーを出す状態でなければ null。
+   * サーバが next_recovery_at を null にする条件をそのまま写しているので、
+   * 画面側は「null なら出さない」だけを見ればよい。
+   */
+  nextRecoveryAt: null,
+  /** 直近の応答で時間回復した Like 数。通知を出したら 0 に戻す。 */
+  likesRecovered: 0,
   receivedLikeCount: 0,
   matchCount: 0,
   hasUnseenLikes: false,
@@ -41,6 +49,31 @@ export const session = $state({
   /** ブラウザが Cookie を保存していないと分かったら true。 */
   cookiesBlocked: false,
 });
+
+/**
+ * 残数まわりの応答をまとめて反映する。ホーム・探索・Like・プロフィール保存の
+ * どの応答も同じ3つのフィールドを持つので、受け口を1つにしておく。
+ */
+export function applyLikeState(res) {
+  session.remainingLikes = res.remaining_likes;
+  session.nextRecoveryAt = res.next_recovery_at ? new Date(res.next_recovery_at).getTime() : null;
+  // 回復は3時間に1回しか起きない。通知は上書きせず、出し終わるまで残す。
+  if (res.likes_recovered > 0) session.likesRecovered = res.likes_recovered;
+}
+
+/** 回復の通知を引っ込める。表示した側が呼ぶ。 */
+export function clearRecoveryNotice() {
+  session.likesRecovered = 0;
+}
+
+/**
+ * 次の時間回復までの残りミリ秒。タイマーを出さない状態なら null。
+ * ゲーム日のカウントダウンと同じく、共有ティッカーの値を渡して使う。
+ */
+export function nextRecoveryMsFrom(browserNow) {
+  if (session.nextRecoveryAt === null) return null;
+  return session.nextRecoveryAt - (browserNow + session.clockOffsetMs);
+}
 
 /** ブラウザの時計ずれを補正したサーバ時刻（ミリ秒）。 */
 export function serverNow() {
@@ -76,7 +109,7 @@ function applyHome(home) {
   session.gameDate = home.game_date;
   session.personaGenerated = home.persona_generated;
   session.persona = home.persona;
-  session.remainingLikes = home.remaining_likes;
+  applyLikeState(home);
   session.receivedLikeCount = home.received_like_count;
   session.matchCount = home.match_count;
   session.hasUnseenLikes = home.has_unseen_likes;
@@ -154,7 +187,7 @@ export async function deletePhoto() {
 export async function updateProfile(fields) {
   const res = await api.patch('/api/persona/profile', fields);
   session.persona = res.persona;
-  session.remainingLikes = res.remaining_likes;
+  applyLikeState(res);
   // 受け取り済みになったら、その場で訴求を引っ込める。
   session.profileRewardAvailable = res.profile_reward_available;
   return res.likes_gained;

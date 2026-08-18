@@ -14,7 +14,14 @@
   import MyPage from './routes/MyPage.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
   import PersonaReveal from './components/PersonaReveal.svelte';
-  import { session, bootstrap, remainingMsFrom, markDayEnded } from './lib/session.svelte.js';
+  import {
+    session,
+    bootstrap,
+    remainingMsFrom,
+    nextRecoveryMsFrom,
+    refreshHome,
+    markDayEnded,
+  } from './lib/session.svelte.js';
   import { ticker, startTicker } from './lib/ticker.svelte.js';
   import { nav, SCREENS } from './lib/nav.svelte.js';
   import { reveal, rollNewLife, closeReveal } from './lib/reveal.svelte.js';
@@ -36,6 +43,24 @@
     if (!session.loading && session.gameDate && remaining <= 0) {
       markDayEnded();
     }
+  });
+
+  // 時間回復のタイマーが満了したら、一度だけホームを読み直して残数に反映する。
+  // 起きるのは3時間に1回なのでポーリングにはならず、サーバ側にも常駐の
+  // タイマーを置かずに済む。同じ満了で何度も投げないよう、投げた時刻を覚える。
+  let reloadedFor = null;
+
+  $effect(() => {
+    if (session.loading || session.dayEnded) return;
+
+    const untilNext = nextRecoveryMsFrom(ticker.now);
+    if (untilNext === null || untilNext > 0) return;
+    if (reloadedFor === session.nextRecoveryAt) return;
+
+    reloadedFor = session.nextRecoveryAt;
+    // 失敗しても次のティックで投げ直せるほどのものではないので、黙って諦める。
+    // 画面遷移のたびにホームは読み直されるため、遅くともそこで追いつく。
+    refreshHome().catch(() => {});
   });
 
   const showFiveMinuteWarning = $derived(

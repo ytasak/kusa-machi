@@ -5,8 +5,9 @@
   import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
   import MatchAnimation from '../components/MatchAnimation.svelte';
+  import LikeRecovery from '../components/LikeRecovery.svelte';
   import { api, ApiError } from '../lib/api.js';
-  import { session, withDayGuard, LIKE_CAP } from '../lib/session.svelte.js';
+  import { session, withDayGuard, applyLikeState, LIKE_CAP } from '../lib/session.svelte.js';
   import { discover, currentCard, consumeCurrent, ensureCards } from '../lib/discover.svelte.js';
   import { go, SCREENS } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
@@ -25,7 +26,16 @@
   const card = $derived(currentCard());
   const outOfLikes = $derived(session.remainingLikes <= 0);
 
-  onMount(ensureCards);
+  onMount(refill);
+
+  /**
+   * カードを補充する。探索の応答には残数と次回回復も入っているので、
+   * この往復が時間回復を画面へ反映する機会にもなる。
+   */
+  async function refill() {
+    const res = await ensureCards();
+    if (res) applyLikeState(res);
+  }
 
   // 「このカードはもう古い」という意味でしかないエラー。カードはすでに
   // 送り出しているので、ユーザーに見せるべきことは何も無い。
@@ -66,13 +76,13 @@
     consumeCurrent();
     throwCard(target, 'like');
     vibrate(HAPTICS.like);
-    ensureCards();
+    refill();
 
     try {
       const res = await withDayGuard(() => api.post('/api/likes', { persona_id: target.id }));
 
       // サーバの値で確定させ、楽観更新のズレをここで吸収する。
-      session.remainingLikes = res.remaining_likes;
+      applyLikeState(res);
 
       if (res.matched) {
         session.matchCount += 1;
@@ -110,7 +120,7 @@
     consumeCurrent({ cooldownId: target.id });
     throwCard(target, 'pass');
     vibrate(HAPTICS.pass);
-    ensureCards();
+    refill();
 
     try {
       await withDayGuard(() => api.post('/api/passes', { persona_id: target.id }));
@@ -166,6 +176,9 @@
         {/if}
       </div>
     </div>
+
+    <!-- Like の数字はヘッダーにある。ここに出すのは「次にいつ増えるか」だけ。 -->
+    <LikeRecovery />
 
     <div class={ui.actions}>
       <button class="{ui.circle} {ui.circlePass}" onclick={onPass} aria-label="パス">

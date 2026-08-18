@@ -4,6 +4,7 @@
   import ui from '../components/ui.module.css';
   import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
+  import LikeRecovery from '../components/LikeRecovery.svelte';
   import { session, refreshHome, LIKE_CAP } from '../lib/session.svelte.js';
   import { go, SCREENS } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
@@ -47,6 +48,9 @@
       <span class={styles.statValue}>{session.matchCount}</span>
     </div>
   </div>
+
+  <!-- 残りLike のすぐ下に置く。数字と、それが次にいつ増えるかを並べて見せる。 -->
+  <LikeRecovery />
 
   <!-- 報酬は完成させた後にしか見えないと気づけない。残りLike のすぐ下に置いて、
        「何をすれば増えるのか」を数字と並べて示す。押すとそのまま編集画面へ。 -->
