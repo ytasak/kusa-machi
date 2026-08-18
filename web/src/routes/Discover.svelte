@@ -7,7 +7,7 @@
   import MatchAnimation from '../components/MatchAnimation.svelte';
   import LikeRecovery from '../components/LikeRecovery.svelte';
   import { api, ApiError } from '../lib/api.js';
-  import { session, withDayGuard, applyLikeState, LIKE_CAP } from '../lib/session.svelte.js';
+  import { session, withDayGuard, applyLikeState } from '../lib/session.svelte.js';
   import { discover, currentCard, consumeCurrent, ensureCards } from '../lib/discover.svelte.js';
   import { go, SCREENS } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
@@ -101,7 +101,7 @@
     if (e instanceof ApiError && e.code === 'LikeLimitExceeded') {
       session.remainingLikes = 0;
     } else {
-      session.remainingLikes = Math.min(LIKE_CAP, session.remainingLikes + 1);
+      session.remainingLikes = Math.min(session.likeCapacity, session.remainingLikes + 1);
     }
 
     if (!(e instanceof ApiError) || !STALE_CODES.has(e.code)) {

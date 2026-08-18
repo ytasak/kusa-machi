@@ -10,10 +10,11 @@ import { errorMessage } from './errors.js';
 export const LIKE_BUDGET = 10;
 
 /**
- * Like の所持上限。サーバ側の matching.LikeCap と一致させる。
+ * Like の所持上限の初期値。最初の応答が届くまでのあいだだけ使う。
  *
  * 残数の分母にはこちらを使う。予算 10 を分母にすると、回復で 11 や 12 に
- * なったときに「11 / 10」と出てしまう。
+ * なったときに「11 / 10」と出てしまう。上限を決めるのはサーバなので、
+ * 応答が届いたら session.likeCapacity が like_capacity で上書きされる。
  */
 export const LIKE_CAP = 12;
 
@@ -26,6 +27,8 @@ export const session = $state({
   persona: null,
 
   remainingLikes: 10,
+  /** Like の所持上限。残数の分母。サーバの like_capacity で上書きされる。 */
+  likeCapacity: LIKE_CAP,
   /**
    * 次に時間回復が起きる時刻（ミリ秒）。タイマーを出す状態でなければ null。
    * サーバが next_recovery_at を null にする条件をそのまま写しているので、
@@ -52,10 +55,11 @@ export const session = $state({
 
 /**
  * 残数まわりの応答をまとめて反映する。ホーム・探索・Like・プロフィール保存の
- * どの応答も同じ3つのフィールドを持つので、受け口を1つにしておく。
+ * どの応答も同じフィールドを持つので、受け口を1つにしておく。
  */
 export function applyLikeState(res) {
   session.remainingLikes = res.remaining_likes;
+  session.likeCapacity = res.like_capacity;
   session.nextRecoveryAt = res.next_recovery_at ? new Date(res.next_recovery_at).getTime() : null;
   // 回復は3時間に1回しか起きない。通知は上書きせず、出し終わるまで残す。
   if (res.likes_recovered > 0) session.likesRecovered = res.likes_recovered;

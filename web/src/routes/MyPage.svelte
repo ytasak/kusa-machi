@@ -5,7 +5,7 @@
   import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
   import LikeRecovery from '../components/LikeRecovery.svelte';
-  import { session, refreshHome, LIKE_CAP } from '../lib/session.svelte.js';
+  import { session, refreshHome } from '../lib/session.svelte.js';
   import { go, SCREENS } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
@@ -37,7 +37,7 @@
   <div class={styles.stats}>
     <div class={styles.stat}>
       <span class={styles.statLabel}>残りLike</span>
-      <span class={styles.statValue}>{session.remainingLikes} / {LIKE_CAP}</span>
+      <span class={styles.statValue}>{session.remainingLikes} / {session.likeCapacity}</span>
     </div>
     <div class={styles.stat}>
       <span class={styles.statLabel}>Likeされた</span>

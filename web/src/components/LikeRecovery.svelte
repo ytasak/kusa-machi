@@ -5,16 +5,11 @@
   //   - 回復した直後の通知（数秒で静かに消える）
   //   - 所持上限に達している「満タン」
   //   - 次の回復までのカウントダウン
-  // どれにも当てはまらない状態、つまりまだ Like を使っていない場合や
-  // その日の回復を使い切った場合は、何も出さない。
+  // どれにも当てはまらない状態、つまりまだ Like を1つも使っておらず
+  // タイマーが動いていない場合は、何も出さない。
   import styles from './LikeRecovery.module.css';
   import Icon from './Icon.svelte';
-  import {
-    session,
-    nextRecoveryMsFrom,
-    clearRecoveryNotice,
-    LIKE_CAP,
-  } from '../lib/session.svelte.js';
+  import { session, nextRecoveryMsFrom, clearRecoveryNotice } from '../lib/session.svelte.js';
   import { ticker } from '../lib/ticker.svelte.js';
   import { countdown } from '../lib/format.js';
 
@@ -22,7 +17,7 @@
   const NOTICE_MS = 4000;
 
   const untilNext = $derived(nextRecoveryMsFrom(ticker.now));
-  const full = $derived(session.remainingLikes >= LIKE_CAP);
+  const full = $derived(session.remainingLikes >= session.likeCapacity);
 
   // 出した通知は自分で片付ける。画面を離れても残らないよう、後始末も返す。
   $effect(() => {

@@ -1,7 +1,7 @@
 <script>
   import styles from './AppHeader.module.css';
   import Icon from './Icon.svelte';
-  import { session, remainingMsFrom, LIKE_CAP } from '../lib/session.svelte.js';
+  import { session, remainingMsFrom } from '../lib/session.svelte.js';
   import { ticker } from '../lib/ticker.svelte.js';
   import { countdown } from '../lib/format.js';
 
@@ -18,6 +18,6 @@
 
   <span class={styles.likes} aria-label="残りLike">
     <Icon name="heart" size={13} filled />
-    {session.remainingLikes} / {LIKE_CAP}
+    {session.remainingLikes} / {session.likeCapacity}
   </span>
 </header>
