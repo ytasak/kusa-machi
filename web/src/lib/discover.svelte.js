@@ -67,22 +67,30 @@ export async function fetchBatch() {
       ? `/api/discover?exclude=${encodeURIComponent(exclude.join(','))}`
       : '/api/discover';
 
-    const { personas } = await api.get(path);
+    const res = await api.get(path);
     const known = new Set(discover.queue.map((p) => p.id));
-    const fresh = personas.filter((p) => !known.has(p.id));
+    const fresh = res.personas.filter((p) => !known.has(p.id));
 
     discover.queue = [...discover.queue, ...fresh];
     discover.exhausted = discover.queue.length === 0;
+    // 応答には残数と次回回復も入っている。session を直接触ると
+    // session -> discover の import と循環するので、呼び出し側に渡す。
+    return res;
   } catch (e) {
     discover.error = errorMessage(e);
+    return null;
   } finally {
     discover.loading = false;
   }
 }
 
-/** ユーザーにバッチの切れ目を意識させずにキューを補充し続ける。 */
+/**
+ * ユーザーにバッチの切れ目を意識させずにキューを補充し続ける。
+ * 取得した場合はその応答を返す。補充が不要だった場合は null。
+ */
 export async function ensureCards() {
   if (discover.queue.length <= PREFETCH_THRESHOLD) {
-    await fetchBatch();
+    return await fetchBatch();
   }
+  return null;
 }

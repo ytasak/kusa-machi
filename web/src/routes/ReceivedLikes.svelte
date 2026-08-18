@@ -6,7 +6,7 @@
   import PersonaCard from '../components/PersonaCard.svelte';
   import MatchAnimation from '../components/MatchAnimation.svelte';
   import { api, ApiError } from '../lib/api.js';
-  import { session, withDayGuard } from '../lib/session.svelte.js';
+  import { session, withDayGuard, applyLikeState } from '../lib/session.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
   let personas = $state([]);
@@ -50,7 +50,7 @@
     message = null;
     try {
       const res = await withDayGuard(() => api.post('/api/likes', { persona_id: persona.id }));
-      session.remainingLikes = res.remaining_likes;
+      applyLikeState(res);
       if (res.matched) {
         session.matchCount += 1;
         outcome = { ...outcome, [persona.id]: 'matched' };

@@ -13,7 +13,7 @@ import (
 )
 
 const listMatches = `-- name: ListMatches :many
-SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.bonus_likes, p.profile_reward_claimed, p.match_reward_count
+SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.like_recovery_anchor_at
 FROM matches m
 JOIN personas p ON p.id = CASE
     WHEN m.persona_low_id = $1 THEN m.persona_high_id
@@ -49,9 +49,10 @@ func (q *Queries) ListMatches(ctx context.Context, personaID uuid.UUID) ([]Perso
 			&i.ExposureCount,
 			&i.CreatedAt,
 			&i.PhotoUpdatedAt,
-			&i.BonusLikes,
 			&i.ProfileRewardClaimed,
 			&i.MatchRewardCount,
+			&i.LikeBalance,
+			&i.LikeRecoveryAnchorAt,
 		); err != nil {
 			return nil, err
 		}
@@ -64,7 +65,7 @@ func (q *Queries) ListMatches(ctx context.Context, personaID uuid.UUID) ([]Perso
 }
 
 const listReceivedLikes = `-- name: ListReceivedLikes :many
-SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.bonus_likes, p.profile_reward_claimed, p.match_reward_count
+SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.like_recovery_anchor_at
 FROM likes l
 JOIN personas p ON p.id = l.from_persona_id
 WHERE l.to_persona_id = $1
@@ -97,9 +98,10 @@ func (q *Queries) ListReceivedLikes(ctx context.Context, personaID uuid.UUID) ([
 			&i.ExposureCount,
 			&i.CreatedAt,
 			&i.PhotoUpdatedAt,
-			&i.BonusLikes,
 			&i.ProfileRewardClaimed,
 			&i.MatchRewardCount,
+			&i.LikeBalance,
+			&i.LikeRecoveryAnchorAt,
 		); err != nil {
 			return nil, err
 		}
@@ -112,7 +114,7 @@ func (q *Queries) ListReceivedLikes(ctx context.Context, personaID uuid.UUID) ([
 }
 
 const listSentLikes = `-- name: ListSentLikes :many
-SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.bonus_likes, p.profile_reward_claimed, p.match_reward_count, EXISTS (
+SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.like_recovery_anchor_at, EXISTS (
     SELECT 1 FROM matches m
     WHERE (m.persona_low_id = $1 AND m.persona_high_id = p.id)
        OR (m.persona_low_id = p.id AND m.persona_high_id = $1)
@@ -138,9 +140,10 @@ type ListSentLikesRow struct {
 	ExposureCount        int32
 	CreatedAt            time.Time
 	PhotoUpdatedAt       *time.Time
-	BonusLikes           int16
 	ProfileRewardClaimed bool
 	MatchRewardCount     int16
+	LikeBalance          int16
+	LikeRecoveryAnchorAt *time.Time
 	Matched              bool
 }
 
@@ -170,9 +173,10 @@ func (q *Queries) ListSentLikes(ctx context.Context, personaID uuid.UUID) ([]Lis
 			&i.ExposureCount,
 			&i.CreatedAt,
 			&i.PhotoUpdatedAt,
-			&i.BonusLikes,
 			&i.ProfileRewardClaimed,
 			&i.MatchRewardCount,
+			&i.LikeBalance,
+			&i.LikeRecoveryAnchorAt,
 			&i.Matched,
 		); err != nil {
 			return nil, err

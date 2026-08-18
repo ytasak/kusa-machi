@@ -51,7 +51,6 @@ UPDATE personas SET photo_updated_at = NULL WHERE id = $1;
 -- 以前は Persona 取得と5つの集計で6回の往復をしていた。
 SELECT
     sqlc.embed(p),
-    (SELECT COUNT(*) FROM likes l WHERE l.from_persona_id = p.id) AS likes_sent,
     (SELECT COUNT(*) FROM likes l WHERE l.to_persona_id = p.id) AS likes_received,
     (
         SELECT COUNT(*) FROM matches m
@@ -78,7 +77,7 @@ WHERE p.participant_id = sqlc.arg('participant_id');
 -- 呼び出し側は LockPersona でこの行を押さえてから、フラグを読んで amount を
 -- 決める。よってページ再読み込みや同じ PATCH の再送では二度目の付与が起きない。
 UPDATE personas
-SET bonus_likes = bonus_likes + sqlc.arg('amount'),
+SET like_balance = like_balance + sqlc.arg('amount'),
     profile_reward_claimed = TRUE
 WHERE id = sqlc.arg('id')
 RETURNING *;
@@ -90,7 +89,34 @@ RETURNING *;
 -- Like のトランザクションが lockPair でこの行を FOR UPDATE しているため、
 -- 同時 Like でも回数が2を超えることはない。
 UPDATE personas
-SET bonus_likes = bonus_likes + sqlc.arg('amount'),
+SET like_balance = like_balance + sqlc.arg('amount'),
     match_reward_count = match_reward_count + 1
 WHERE id = sqlc.arg('id')
-RETURNING bonus_likes;
+RETURNING *;
+
+-- name: ConsumeLike :one
+-- Like 1つの消費。残高を1つ減らし、あわせて時間回復のタイマーを開始する。
+--
+-- 起点を入れるのは初回だけ（COALESCE）。2つ目以降の Like で起点が今に
+-- 進んでしまうと、Like を使うほど回復が遠のくことになる。
+UPDATE personas
+SET like_balance = like_balance - 1,
+    like_recovery_anchor_at = COALESCE(like_recovery_anchor_at, sqlc.arg('now'))
+WHERE id = sqlc.arg('id')
+RETURNING *;
+
+-- name: ApplyTimeRecovery :one
+-- 時間回復の付与。回数の上限は無いので、数えるのは残数と起点だけ。
+--
+-- amount は所持上限で切り詰めた「実際に増える数」。経過した3時間のうち上限で
+-- 受け取れなかった分は失われるため、amount が 0 のまま起点だけが進むことも
+-- ある（満タンのまま3時間が過ぎた場合）。
+--
+-- 起点は呼び出し側が計算した値で上書きする。経過した3時間単位ぶんだけ進み、
+-- 3時間に満たない余りはそのまま残る。時刻の計算をすべて clock 抽象の側に
+-- 寄せておきたいので、SQL では interval を足さない。
+UPDATE personas
+SET like_balance = like_balance + sqlc.arg('amount'),
+    like_recovery_anchor_at = sqlc.arg('anchor_at')
+WHERE id = sqlc.arg('id')
+RETURNING *;

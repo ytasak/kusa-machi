@@ -31,6 +31,7 @@
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  white-space: nowrap;
   background: var(--accent-soft);
   color: var(--accent-strong);
   border-radius: 999px;
@@ -38,4 +39,64 @@
   font-size: 13px;
   font-weight: 700;
   font-variant-numeric: tabular-nums;
+}
+
+.count {
+  display: inline-block;
+}
+
+/* 回復した瞬間の合図。数字が1つ上がったことに気づけば十分なので、
+   跳ねるのは一度だけで、色も動かさない。 */
+.gained {
+  animation: likeGained 380ms ease-out;
+}
+
+@keyframes likeGained {
+  0% {
+    transform: scale(1);
+  }
+
+  32% {
+    transform: scale(1.32);
+  }
+
+  100% {
+    transform: scale(1);
+  }
+}
+
+/* 回復までの時間は残数に従属する情報。同じ丸の中に入れるが、細く小さくして
+   「10 / 12」と読み違えないようにする。 */
+.recovery {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: 2px;
+  padding-left: 8px;
+  border-left: 1px solid rgb(255 45 85 / 20%);
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.recoveryIcon {
+  display: none;
+}
+
+/* 320px 級の画面では丸が2行に折り返し、ヘッダーの高さが崩れる。ラベルを
+   時計アイコンに置き換えて、残数と時刻だけを1行に残す。 */
+@media (max-width: 360px) {
+  .recoveryLabel {
+    display: none;
+  }
+
+  .recoveryIcon {
+    display: inline-flex;
+    align-items: center;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gained {
+    animation-duration: 1ms;
+  }
 }

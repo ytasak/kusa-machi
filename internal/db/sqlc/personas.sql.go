@@ -12,12 +12,61 @@ import (
 	"github.com/google/uuid"
 )
 
+const applyTimeRecovery = `-- name: ApplyTimeRecovery :one
+UPDATE personas
+SET like_balance = like_balance + $1,
+    like_recovery_anchor_at = $2
+WHERE id = $3
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, profile_reward_claimed, match_reward_count, like_balance, like_recovery_anchor_at
+`
+
+type ApplyTimeRecoveryParams struct {
+	Amount   int16
+	AnchorAt *time.Time
+	ID       uuid.UUID
+}
+
+// 時間回復の付与。回数の上限は無いので、数えるのは残数と起点だけ。
+//
+// amount は所持上限で切り詰めた「実際に増える数」。経過した3時間のうち上限で
+// 受け取れなかった分は失われるため、amount が 0 のまま起点だけが進むことも
+// ある（満タンのまま3時間が過ぎた場合）。
+//
+// 起点は呼び出し側が計算した値で上書きする。経過した3時間単位ぶんだけ進み、
+// 3時間に満たない余りはそのまま残る。時刻の計算をすべて clock 抽象の側に
+// 寄せておきたいので、SQL では interval を足さない。
+func (q *Queries) ApplyTimeRecovery(ctx context.Context, arg ApplyTimeRecoveryParams) (Persona, error) {
+	row := q.db.QueryRow(ctx, applyTimeRecovery, arg.Amount, arg.AnchorAt, arg.ID)
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipantID,
+		&i.Age,
+		&i.Gender,
+		&i.HeightCm,
+		&i.Education,
+		&i.Occupation,
+		&i.AnnualIncome,
+		&i.Name,
+		&i.Hobby,
+		&i.Bio,
+		&i.ExposureCount,
+		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
+	)
+	return i, err
+}
+
 const claimMatchReward = `-- name: ClaimMatchReward :one
 UPDATE personas
-SET bonus_likes = bonus_likes + $1,
+SET like_balance = like_balance + $1,
     match_reward_count = match_reward_count + 1
 WHERE id = $2
-RETURNING bonus_likes
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, profile_reward_claimed, match_reward_count, like_balance, like_recovery_anchor_at
 `
 
 type ClaimMatchRewardParams struct {
@@ -30,19 +79,38 @@ type ClaimMatchRewardParams struct {
 //
 // Like のトランザクションが lockPair でこの行を FOR UPDATE しているため、
 // 同時 Like でも回数が2を超えることはない。
-func (q *Queries) ClaimMatchReward(ctx context.Context, arg ClaimMatchRewardParams) (int16, error) {
+func (q *Queries) ClaimMatchReward(ctx context.Context, arg ClaimMatchRewardParams) (Persona, error) {
 	row := q.db.QueryRow(ctx, claimMatchReward, arg.Amount, arg.ID)
-	var bonus_likes int16
-	err := row.Scan(&bonus_likes)
-	return bonus_likes, err
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipantID,
+		&i.Age,
+		&i.Gender,
+		&i.HeightCm,
+		&i.Education,
+		&i.Occupation,
+		&i.AnnualIncome,
+		&i.Name,
+		&i.Hobby,
+		&i.Bio,
+		&i.ExposureCount,
+		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
+	)
+	return i, err
 }
 
 const claimProfileReward = `-- name: ClaimProfileReward :one
 UPDATE personas
-SET bonus_likes = bonus_likes + $1,
+SET like_balance = like_balance + $1,
     profile_reward_claimed = TRUE
 WHERE id = $2
-RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, profile_reward_claimed, match_reward_count, like_balance, like_recovery_anchor_at
 `
 
 type ClaimProfileRewardParams struct {
@@ -74,9 +142,10 @@ func (q *Queries) ClaimProfileReward(ctx context.Context, arg ClaimProfileReward
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
-		&i.BonusLikes,
 		&i.ProfileRewardClaimed,
 		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
 	)
 	return i, err
 }
@@ -90,8 +159,51 @@ func (q *Queries) ClearPersonaPhoto(ctx context.Context, id uuid.UUID) error {
 	return err
 }
 
+const consumeLike = `-- name: ConsumeLike :one
+UPDATE personas
+SET like_balance = like_balance - 1,
+    like_recovery_anchor_at = COALESCE(like_recovery_anchor_at, $1)
+WHERE id = $2
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, profile_reward_claimed, match_reward_count, like_balance, like_recovery_anchor_at
+`
+
+type ConsumeLikeParams struct {
+	Now *time.Time
+	ID  uuid.UUID
+}
+
+// Like 1つの消費。残高を1つ減らし、あわせて時間回復のタイマーを開始する。
+//
+// 起点を入れるのは初回だけ（COALESCE）。2つ目以降の Like で起点が今に
+// 進んでしまうと、Like を使うほど回復が遠のくことになる。
+func (q *Queries) ConsumeLike(ctx context.Context, arg ConsumeLikeParams) (Persona, error) {
+	row := q.db.QueryRow(ctx, consumeLike, arg.Now, arg.ID)
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipantID,
+		&i.Age,
+		&i.Gender,
+		&i.HeightCm,
+		&i.Education,
+		&i.Occupation,
+		&i.AnnualIncome,
+		&i.Name,
+		&i.Hobby,
+		&i.Bio,
+		&i.ExposureCount,
+		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
+	)
+	return i, err
+}
+
 const getActivePersona = `-- name: GetActivePersona :one
-SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.bonus_likes, p.profile_reward_claimed, p.match_reward_count FROM personas p
+SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.like_recovery_anchor_at FROM personas p
 JOIN participants pa ON pa.id = p.participant_id
 WHERE p.id = $1 AND pa.game_date = $2
 `
@@ -120,17 +232,17 @@ func (q *Queries) GetActivePersona(ctx context.Context, arg GetActivePersonaPara
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
-		&i.BonusLikes,
 		&i.ProfileRewardClaimed,
 		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
 	)
 	return i, err
 }
 
 const getHomeState = `-- name: GetHomeState :one
 SELECT
-    p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.bonus_likes, p.profile_reward_claimed, p.match_reward_count,
-    (SELECT COUNT(*) FROM likes l WHERE l.from_persona_id = p.id) AS likes_sent,
+    p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.like_recovery_anchor_at,
     (SELECT COUNT(*) FROM likes l WHERE l.to_persona_id = p.id) AS likes_received,
     (
         SELECT COUNT(*) FROM matches m
@@ -158,7 +270,6 @@ type GetHomeStateParams struct {
 
 type GetHomeStateRow struct {
 	Persona          Persona
-	LikesSent        int64
 	LikesReceived    int64
 	MatchCount       int64
 	HasUnseenLikes   bool
@@ -185,10 +296,10 @@ func (q *Queries) GetHomeState(ctx context.Context, arg GetHomeStateParams) (Get
 		&i.Persona.ExposureCount,
 		&i.Persona.CreatedAt,
 		&i.Persona.PhotoUpdatedAt,
-		&i.Persona.BonusLikes,
 		&i.Persona.ProfileRewardClaimed,
 		&i.Persona.MatchRewardCount,
-		&i.LikesSent,
+		&i.Persona.LikeBalance,
+		&i.Persona.LikeRecoveryAnchorAt,
 		&i.LikesReceived,
 		&i.MatchCount,
 		&i.HasUnseenLikes,
@@ -198,7 +309,7 @@ func (q *Queries) GetHomeState(ctx context.Context, arg GetHomeStateParams) (Get
 }
 
 const getPersonaByID = `-- name: GetPersonaByID :one
-SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count FROM personas WHERE id = $1
+SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, profile_reward_claimed, match_reward_count, like_balance, like_recovery_anchor_at FROM personas WHERE id = $1
 `
 
 func (q *Queries) GetPersonaByID(ctx context.Context, id uuid.UUID) (Persona, error) {
@@ -219,15 +330,16 @@ func (q *Queries) GetPersonaByID(ctx context.Context, id uuid.UUID) (Persona, er
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
-		&i.BonusLikes,
 		&i.ProfileRewardClaimed,
 		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
 	)
 	return i, err
 }
 
 const getPersonaByParticipant = `-- name: GetPersonaByParticipant :one
-SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count FROM personas WHERE participant_id = $1
+SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, profile_reward_claimed, match_reward_count, like_balance, like_recovery_anchor_at FROM personas WHERE participant_id = $1
 `
 
 func (q *Queries) GetPersonaByParticipant(ctx context.Context, participantID uuid.UUID) (Persona, error) {
@@ -248,9 +360,10 @@ func (q *Queries) GetPersonaByParticipant(ctx context.Context, participantID uui
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
-		&i.BonusLikes,
 		&i.ProfileRewardClaimed,
 		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
 	)
 	return i, err
 }
@@ -272,7 +385,7 @@ INSERT INTO personas (
 ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (participant_id)
 DO UPDATE SET participant_id = personas.participant_id
-RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, profile_reward_claimed, match_reward_count, like_balance, like_recovery_anchor_at
 `
 
 type InsertPersonaParams struct {
@@ -315,15 +428,16 @@ func (q *Queries) InsertPersona(ctx context.Context, arg InsertPersonaParams) (P
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
-		&i.BonusLikes,
 		&i.ProfileRewardClaimed,
 		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
 	)
 	return i, err
 }
 
 const lockPersona = `-- name: LockPersona :one
-SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count FROM personas WHERE id = $1 FOR UPDATE
+SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, profile_reward_claimed, match_reward_count, like_balance, like_recovery_anchor_at FROM personas WHERE id = $1 FOR UPDATE
 `
 
 // Like / Pass / プロフィール更新のトランザクションを直列化する。Like と Pass は
@@ -350,9 +464,10 @@ func (q *Queries) LockPersona(ctx context.Context, id uuid.UUID) (Persona, error
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
-		&i.BonusLikes,
 		&i.ProfileRewardClaimed,
 		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
 	)
 	return i, err
 }
@@ -372,7 +487,7 @@ const updatePersonaProfile = `-- name: UpdatePersonaProfile :one
 UPDATE personas
 SET name = $2, hobby = $3, bio = $4
 WHERE id = $1
-RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count
+RETURNING id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, profile_reward_claimed, match_reward_count, like_balance, like_recovery_anchor_at
 `
 
 type UpdatePersonaProfileParams struct {
@@ -405,9 +520,10 @@ func (q *Queries) UpdatePersonaProfile(ctx context.Context, arg UpdatePersonaPro
 		&i.ExposureCount,
 		&i.CreatedAt,
 		&i.PhotoUpdatedAt,
-		&i.BonusLikes,
 		&i.ProfileRewardClaimed,
 		&i.MatchRewardCount,
+		&i.LikeBalance,
+		&i.LikeRecoveryAnchorAt,
 	)
 	return i, err
 }

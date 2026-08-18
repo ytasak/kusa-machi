@@ -1,5 +1,5 @@
-// Package matching は市場のルールを持つ。1日の Like 予算、回復報酬と所持上限、
-// Pass の上限、および Match を保存する際の正規化済み Persona ペアを扱う。
+// Package matching は市場のルールを持つ。1日の Like 予算、回復報酬と時間回復、
+// 所持上限、Pass の上限、および Match を保存する際の正規化済み Persona ペアを扱う。
 package matching
 
 import (
@@ -10,6 +10,10 @@ import (
 
 // DailyLikeBudget は各 Persona がゲーム日の開始時に得る Like の数。
 // Like へのお返しも同じ予算を消費し、別枠は存在しない。
+//
+// 残数はこの値から導出せず、personas.like_balance として明示的に持つ。
+// 時間回復は「Like を送っていないのに残数が増える」ため、送信済み Like 数
+// からの引き算では表せない。この定数が使われるのは初期値の宣言だけ。
 const DailyLikeBudget = 10
 
 // LikeCap は現在の所持数の上限。回復がこれを超える分は失われる。
@@ -42,23 +46,12 @@ func NormalizePair(a, b uuid.UUID) (low, high uuid.UUID) {
 	return b, a
 }
 
-// RemainingLikes は残り予算を負にならないよう丸める。
-//
-// bonus は回復報酬で上乗せされた累計。付与の時点で所持上限に切り詰めてあるので、
-// ここでもう一度上限を当てる必要はない。
-func RemainingLikes(sent int64, bonus int16) int {
-	remaining := DailyLikeBudget + int(bonus) - int(sent)
-	if remaining < 0 {
-		return 0
-	}
-	return remaining
-}
-
 // GrantableLikes は報酬のうち実際に回復できる数を返す。
 //
 // 所持上限に収まらない分は捨てる。呼び出し側はこの戻り値をそのまま
-// bonus_likes に足すので、失われた分が後から復活することはない。
+// like_balance に足すので、失われた分が後から復活することはない。
 // 上限に達していれば 0 を返すが、それでも報酬の受け取り枠は消費される。
+// 時間回復も同じで、上限で受け取れなかった3時間は失われる（recovery.go を参照）。
 func GrantableLikes(current, reward int) int {
 	room := LikeCap - current
 	if room <= 0 {

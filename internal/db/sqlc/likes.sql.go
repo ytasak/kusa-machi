@@ -11,19 +11,6 @@ import (
 	"github.com/google/uuid"
 )
 
-const countLikesSent = `-- name: CountLikesSent :one
-SELECT COUNT(*) FROM likes WHERE from_persona_id = $1
-`
-
-// 当日消費した Like 数。前日の Persona は二度と行動できないため likes の行は
-// 常に当日の Persona を指す。したがって日付での絞り込みは不要。
-func (q *Queries) CountLikesSent(ctx context.Context, fromPersonaID uuid.UUID) (int64, error) {
-	row := q.db.QueryRow(ctx, countLikesSent, fromPersonaID)
-	var count int64
-	err := row.Scan(&count)
-	return count, err
-}
-
 const insertLike = `-- name: InsertLike :one
 INSERT INTO likes (id, from_persona_id, to_persona_id)
 VALUES ($1, $2, $3)

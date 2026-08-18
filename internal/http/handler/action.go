@@ -18,8 +18,15 @@ type targetRequest struct {
 
 type likeResponse struct {
 	RemainingLikes int        `json:"remaining_likes"`
+	LikeCapacity   int        `json:"like_capacity"`
 	Matched        bool       `json:"matched"`
 	MatchID        *uuid.UUID `json:"match_id,omitempty"`
+	// NextRecoveryAt はこの Like を消費した後の、次の時間回復の時刻。その日の
+	// 1つ目の Like がタイマーを開始させるので、多くの場合ここで初めて値が入る。
+	NextRecoveryAt *string `json:"next_recovery_at"`
+	// LikesRecovered はこのリクエストの中で時間回復した Like の数。残数0の
+	// まま開いていた画面から送ったときに 0 より大きくなることがある。
+	LikesRecovered int `json:"likes_recovered"`
 	// LikesGained は Match 報酬で実際に増えた Like の数。0 のときは画面が
 	// 回復の表示を省くので、所持上限で何も増えなかった Match は静かに終わる。
 	LikesGained   int          `json:"likes_gained"`
@@ -49,7 +56,10 @@ func (h *Handler) CreateLike(w http.ResponseWriter, r *http.Request) {
 	}
 
 	resp := likeResponse{
-		RemainingLikes: result.RemainingLikes,
+		RemainingLikes: result.Likes.Remaining,
+		LikeCapacity:   result.Likes.Capacity,
+		NextRecoveryAt: jstTime(result.Likes.NextRecoveryAt),
+		LikesRecovered: result.Likes.Recovered,
 		Matched:        result.Matched,
 		LikesGained:    result.LikesGained,
 	}

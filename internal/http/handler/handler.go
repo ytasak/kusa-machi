@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/jackc/pgx/v5"
@@ -41,9 +42,19 @@ func New(pool *pgxpool.Pool, clk clock.Clock, gen *persona.Generator, photos *ph
 		q:        sqlc.New(pool),
 		clock:    clk,
 		gen:      gen,
-		matching: matching.NewService(pool),
+		matching: matching.NewService(pool, clk),
 		photos:   photos,
 	}
+}
+
+// jstTime は時刻を JST の RFC3339 文字列にする。nil はそのまま JSON の null に
+// なるので、画面は「その状態は無い」を1つの条件で判定できる。
+func jstTime(t *time.Time) *string {
+	if t == nil {
+		return nil
+	}
+	formatted := t.In(clock.JST).Format(time.RFC3339)
+	return &formatted
 }
 
 // personaCard は Persona の公開表現。exposure 数・Like/Match 数・participant や
