@@ -186,6 +186,7 @@ type HomeResponse struct {
 	PersonaGenerated  bool         `json:"persona_generated"`
 	Persona           *PersonaCard `json:"persona"`
 	RemainingLikes    int          `json:"remaining_likes"`
+	LikeCapacity      int          `json:"like_capacity"`
 	ReceivedLikeCount int64        `json:"received_like_count"`
 	MatchCount        int64        `json:"match_count"`
 	HasUnseenLikes    bool         `json:"has_unseen_likes"`
@@ -265,6 +266,7 @@ func (a *App) NewStartedClients(t *testing.T, n int) ([]*Client, []PersonaCard) 
 type DiscoverResponse struct {
 	Personas       []PersonaCard `json:"personas"`
 	RemainingLikes int           `json:"remaining_likes"`
+	LikeCapacity   int           `json:"like_capacity"`
 	NextRecoveryAt *string       `json:"next_recovery_at"`
 	LikesRecovered int           `json:"likes_recovered"`
 }
@@ -272,6 +274,7 @@ type DiscoverResponse struct {
 // LikeResponse は POST /api/likes に対応する。
 type LikeResponse struct {
 	RemainingLikes int          `json:"remaining_likes"`
+	LikeCapacity   int          `json:"like_capacity"`
 	NextRecoveryAt *string      `json:"next_recovery_at"`
 	LikesRecovered int          `json:"likes_recovered"`
 	Matched        bool         `json:"matched"`
@@ -284,6 +287,7 @@ type LikeResponse struct {
 type ProfileUpdateResponse struct {
 	Persona                PersonaCard `json:"persona"`
 	RemainingLikes         int         `json:"remaining_likes"`
+	LikeCapacity           int         `json:"like_capacity"`
 	NextRecoveryAt         *string     `json:"next_recovery_at"`
 	LikesRecovered         int         `json:"likes_recovered"`
 	LikesGained            int         `json:"likes_gained"`
@@ -391,11 +395,11 @@ type RewardState struct {
 	LikeBalance          int
 	ProfileRewardClaimed bool
 	MatchRewardCount     int
-	TimeRecoveryCount    int
 
 	// RecoveryAnchorSet は時間回復のタイマーが動き出しているか。時刻そのものを
 	// 持たないのは、この構造体をまるごと比較して「状態が動いていない」ことを
 	// 確かめるテストがあるため。ポインタを持つと読むたびに不一致になる。
+	// 起点が進んだかどうかを見たいテストは RecoveryAnchor を使う。
 	RecoveryAnchorSet bool
 }
 
@@ -405,14 +409,27 @@ func (a *App) RewardState(t *testing.T, personaID string) RewardState {
 	var out RewardState
 	err := a.Pool.QueryRow(t.Context(),
 		`SELECT like_balance, profile_reward_claimed, match_reward_count,
-		        time_recovery_count, like_recovery_anchor_at IS NOT NULL
+		        like_recovery_anchor_at IS NOT NULL
 		   FROM personas WHERE id = $1`, personaID,
 	).Scan(&out.LikeBalance, &out.ProfileRewardClaimed, &out.MatchRewardCount,
-		&out.TimeRecoveryCount, &out.RecoveryAnchorSet)
+		&out.RecoveryAnchorSet)
 	if err != nil {
 		t.Fatalf("read reward state: %v", err)
 	}
 	return out
+}
+
+// RecoveryAnchor は時間回復の起点をデータベースから直接読む。未開始なら nil。
+// 「上限で1つも増えなかった3時間も起点を進める」ことの確認に使う。
+func (a *App) RecoveryAnchor(t *testing.T, personaID string) *time.Time {
+	t.Helper()
+	var anchor *time.Time
+	err := a.Pool.QueryRow(t.Context(),
+		`SELECT like_recovery_anchor_at FROM personas WHERE id = $1`, personaID).Scan(&anchor)
+	if err != nil {
+		t.Fatalf("read recovery anchor: %v", err)
+	}
+	return anchor
 }
 
 // SpendLikes は n 回 Like を消費させる。回復の余地を作るための下準備。

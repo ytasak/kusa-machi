@@ -106,14 +106,17 @@ WHERE id = sqlc.arg('id')
 RETURNING *;
 
 -- name: ApplyTimeRecovery :one
--- 時間回復の付与。1回の回復が Like 1つなので、増える数と消費する回数は等しい。
+-- 時間回復の付与。回数の上限は無いので、数えるのは残数と起点だけ。
 --
--- 起点は呼び出し側が計算した値で上書きする。付与した回数ぶんだけ進み、
--- 使い切らなかった経過時間はそのまま残る。時刻の計算をすべて clock 抽象の
--- 側に寄せておきたいので、SQL では interval を足さない。
+-- amount は所持上限で切り詰めた「実際に増える数」。経過した3時間のうち上限で
+-- 受け取れなかった分は失われるため、amount が 0 のまま起点だけが進むことも
+-- ある（満タンのまま3時間が過ぎた場合）。
+--
+-- 起点は呼び出し側が計算した値で上書きする。経過した3時間単位ぶんだけ進み、
+-- 3時間に満たない余りはそのまま残る。時刻の計算をすべて clock 抽象の側に
+-- 寄せておきたいので、SQL では interval を足さない。
 UPDATE personas
 SET like_balance = like_balance + sqlc.arg('amount'),
-    time_recovery_count = time_recovery_count + sqlc.arg('amount'),
     like_recovery_anchor_at = sqlc.arg('anchor_at')
 WHERE id = sqlc.arg('id')
 RETURNING *;

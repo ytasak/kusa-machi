@@ -18,6 +18,7 @@ type targetRequest struct {
 
 type likeResponse struct {
 	RemainingLikes int        `json:"remaining_likes"`
+	LikeCapacity   int        `json:"like_capacity"`
 	Matched        bool       `json:"matched"`
 	MatchID        *uuid.UUID `json:"match_id,omitempty"`
 	// NextRecoveryAt はこの Like を消費した後の、次の時間回復の時刻。その日の
@@ -56,6 +57,7 @@ func (h *Handler) CreateLike(w http.ResponseWriter, r *http.Request) {
 
 	resp := likeResponse{
 		RemainingLikes: result.Likes.Remaining,
+		LikeCapacity:   result.Likes.Capacity,
 		NextRecoveryAt: jstTime(result.Likes.NextRecoveryAt),
 		LikesRecovered: result.Likes.Recovered,
 		Matched:        result.Matched,

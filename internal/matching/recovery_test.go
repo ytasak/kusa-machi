@@ -17,12 +17,12 @@ func at(hour, min int) *time.Time {
 	return &t
 }
 
-func TestTimeRecoveryGrant(t *testing.T) {
+func TestEvalTimeRecovery(t *testing.T) {
 	tests := []struct {
 		name  string
 		state TimeRecoveryState
 		now   time.Time
-		want  int
+		want  TimeRecovery
 	}{
 		{
 			// Like を1つも使っていない間はタイマーが動かない。初期の10に
@@ -30,57 +30,54 @@ func TestTimeRecoveryGrant(t *testing.T) {
 			name:  "an untouched budget never starts the timer",
 			state: TimeRecoveryState{Balance: DailyLikeBudget, AnchorAt: nil},
 			now:   jst(23, 59),
-			want:  0,
+			want:  TimeRecovery{},
 		},
 		{
 			name:  "less than the interval grants nothing",
 			state: TimeRecoveryState{Balance: 4, AnchorAt: at(13, 10)},
 			now:   jst(16, 9),
-			want:  0,
+			want:  TimeRecovery{},
 		},
 		{
 			name:  "exactly the interval grants one",
 			state: TimeRecoveryState{Balance: 4, AnchorAt: at(13, 10)},
 			now:   jst(16, 10),
-			want:  1,
+			want:  TimeRecovery{Units: 1, Grant: 1},
 		},
 		{
 			name:  "two intervals grant two",
 			state: TimeRecoveryState{Balance: 4, AnchorAt: at(13, 10)},
 			now:   jst(19, 10),
-			want:  2,
+			want:  TimeRecovery{Units: 2, Grant: 2},
 		},
 		{
-			// 何時間放置しても、その日に時間で得られるのは2つまで。
-			name:  "the daily count caps the grant",
-			state: TimeRecoveryState{Balance: 4, AnchorAt: at(1, 0)},
+			name:  "three intervals grant three",
+			state: TimeRecoveryState{Balance: 4, AnchorAt: at(13, 10)},
+			now:   jst(22, 10),
+			want:  TimeRecovery{Units: 3, Grant: 3},
+		},
+		{
+			// 回数の天井は無い。抑えるのは3時間という間隔と所持上限だけ。
+			name:  "there is no daily count limit",
+			state: TimeRecoveryState{Balance: 0, AnchorAt: at(1, 0)},
 			now:   jst(23, 0),
-			want:  MaxTimeRecoveries,
+			want:  TimeRecovery{Units: 7, Grant: 7},
 		},
 		{
-			name:  "an already used recovery leaves only one",
-			state: TimeRecoveryState{Balance: 4, RecoveryCount: 1, AnchorAt: at(13, 10)},
-			now:   jst(19, 10),
-			want:  1,
+			// 上限まで1つしか空いていなければ、3つぶん経っていても増えるのは1つ。
+			// 残り2つぶんの3時間は Units として消費され、失われる。
+			name:  "the like cap clips the grant but not the units",
+			state: TimeRecoveryState{Balance: LikeCap - 1, AnchorAt: at(9, 0)},
+			now:   jst(18, 30),
+			want:  TimeRecovery{Units: 3, Grant: 1},
 		},
 		{
-			name:  "a spent daily count grants nothing",
-			state: TimeRecoveryState{Balance: 4, RecoveryCount: MaxTimeRecoveries, AnchorAt: at(13, 10)},
-			now:   jst(23, 0),
-			want:  0,
-		},
-		{
-			// 上限まで1つしか空いていなければ、2つぶん経っていても1つだけ。
-			name:  "the like cap clips the grant",
-			state: TimeRecoveryState{Balance: LikeCap - 1, AnchorAt: at(13, 10)},
-			now:   jst(19, 10),
-			want:  1,
-		},
-		{
-			name:  "a full balance grants nothing",
-			state: TimeRecoveryState{Balance: LikeCap, AnchorAt: at(13, 10)},
-			now:   jst(23, 0),
-			want:  0,
+			// 満タンなら何も増えない。それでも Units は立つので、起点は進み、
+			// この3時間は取り置かれない（回復ストックを作らない）。
+			name:  "a full balance loses the elapsed intervals",
+			state: TimeRecoveryState{Balance: LikeCap, AnchorAt: at(12, 0)},
+			now:   jst(18, 0),
+			want:  TimeRecovery{Units: 2, Grant: 0},
 		},
 		{
 			// 起点が未来にある状態は本来起きないが、時計が巻き戻っても
@@ -88,40 +85,52 @@ func TestTimeRecoveryGrant(t *testing.T) {
 			name:  "an anchor in the future grants nothing",
 			state: TimeRecoveryState{Balance: 4, AnchorAt: at(20, 0)},
 			now:   jst(13, 0),
-			want:  0,
+			want:  TimeRecovery{},
 		},
 	}
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := TimeRecoveryGrant(tc.state, tc.now); got != tc.want {
-				t.Fatalf("TimeRecoveryGrant() = %d, want %d", got, tc.want)
+			got := EvalTimeRecovery(tc.state, tc.now)
+			if got != tc.want {
+				t.Fatalf("EvalTimeRecovery() = %+v, want %+v", got, tc.want)
+			}
+			if got.Pending() != (tc.want.Units > 0) {
+				t.Fatalf("Pending() = %v, want %v", got.Pending(), tc.want.Units > 0)
 			}
 		})
 	}
 }
 
-// 上限に達していて1つも増えなかったときは、回数も起点も動かさない。
-// 使い始めればその経過時間がそのまま回復に変わる。
-func TestGrantIsRestoredAfterSpendingAtTheCap(t *testing.T) {
-	full := TimeRecoveryState{Balance: LikeCap, AnchorAt: at(13, 10)}
-	now := jst(19, 10)
+// 上限で受け取れなかった3時間は失われる。後から Like を使っても戻らない。
+func TestGrantLostToTheCapDoesNotComeBack(t *testing.T) {
+	anchor := jst(9, 0)
+	now := jst(18, 30)
 
-	if got := TimeRecoveryGrant(full, now); got != 0 {
-		t.Fatalf("at the cap the grant = %d, want 0", got)
+	// 11/12 に3回ぶんの時間が経つと、増えるのは1つだけ。
+	full := TimeRecoveryState{Balance: LikeCap - 1, AnchorAt: &anchor}
+	got := EvalTimeRecovery(full, now)
+	if want := (TimeRecovery{Units: 3, Grant: 1}); got != want {
+		t.Fatalf("EvalTimeRecovery() = %+v, want %+v", got, want)
 	}
 
-	// 上限のままなので回数は消費されていない。2つ使えば2つ戻る。
-	spent := TimeRecoveryState{Balance: LikeCap - 2, RecoveryCount: 0, AnchorAt: full.AnchorAt}
-	if got := TimeRecoveryGrant(spent, now); got != 2 {
-		t.Fatalf("after spending the grant = %d, want 2", got)
+	// 起点は受け取れなかった分も含めて3回ぶん進む。
+	advanced := AdvanceAnchor(anchor, got.Units)
+	if !advanced.Equal(jst(18, 0)) {
+		t.Fatalf("advanced anchor = %s, want 18:00", advanced)
+	}
+
+	// この後 Like を2つ使っても、失われた2回ぶんは戻ってこない。
+	spent := TimeRecoveryState{Balance: LikeCap - 2, AnchorAt: &advanced}
+	if got := EvalTimeRecovery(spent, now); got.Pending() {
+		t.Fatalf("EvalTimeRecovery() = %+v, want nothing restored", got)
 	}
 }
 
-func TestAdvanceAnchorOnlyMovesByWhatWasGranted(t *testing.T) {
+func TestAdvanceAnchorMovesByTheElapsedUnits(t *testing.T) {
 	anchor := jst(13, 10)
 
-	// 3時間ちょうどに来なくても、余った経過時間は次に持ち越される。
+	// 3時間ちょうどに来なくても、3時間に満たない余りは次に持ち越される。
 	// 16:40 に1つ受け取った場合、次は 19:10 で、20:10 にはならない。
 	if got := AdvanceAnchor(anchor, 1); !got.Equal(jst(16, 10)) {
 		t.Fatalf("AdvanceAnchor(1) = %s, want 16:10", got)
@@ -157,12 +166,6 @@ func TestNextTimeRecoveryAt(t *testing.T) {
 			// 上限に達したら待つ意味が無いので、タイマーを出さない。
 			name:  "a full balance stops the timer",
 			state: TimeRecoveryState{Balance: LikeCap, AnchorAt: at(13, 10)},
-			now:   jst(13, 10),
-			want:  nil,
-		},
-		{
-			name:  "a spent daily count stops the timer",
-			state: TimeRecoveryState{Balance: 4, RecoveryCount: MaxTimeRecoveries, AnchorAt: at(13, 10)},
 			now:   jst(13, 10),
 			want:  nil,
 		},

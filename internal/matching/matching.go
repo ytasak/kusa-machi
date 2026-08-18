@@ -51,7 +51,7 @@ func NormalizePair(a, b uuid.UUID) (low, high uuid.UUID) {
 // 所持上限に収まらない分は捨てる。呼び出し側はこの戻り値をそのまま
 // like_balance に足すので、失われた分が後から復活することはない。
 // 上限に達していれば 0 を返すが、それでも報酬の受け取り枠は消費される。
-// 時間回復だけは例外で、枠を消費しない（recovery.go を参照）。
+// 時間回復も同じで、上限で受け取れなかった3時間は失われる（recovery.go を参照）。
 func GrantableLikes(current, reward int) int {
 	room := LikeCap - current
 	if room <= 0 {

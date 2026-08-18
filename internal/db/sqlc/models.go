@@ -60,6 +60,5 @@ type Persona struct {
 	ProfileRewardClaimed bool
 	MatchRewardCount     int16
 	LikeBalance          int16
-	TimeRecoveryCount    int16
 	LikeRecoveryAnchorAt *time.Time
 }

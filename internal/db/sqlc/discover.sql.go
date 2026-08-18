@@ -13,7 +13,7 @@ import (
 )
 
 const discoverCandidates = `-- name: DiscoverCandidates :many
-SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.time_recovery_count, p.like_recovery_anchor_at
+SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.like_recovery_anchor_at
 FROM personas p
 JOIN participants pa ON pa.id = p.participant_id
 LEFT JOIN passes ps
@@ -84,7 +84,6 @@ func (q *Queries) DiscoverCandidates(ctx context.Context, arg DiscoverCandidates
 			&i.ProfileRewardClaimed,
 			&i.MatchRewardCount,
 			&i.LikeBalance,
-			&i.TimeRecoveryCount,
 			&i.LikeRecoveryAnchorAt,
 		); err != nil {
 			return nil, err

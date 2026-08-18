@@ -37,6 +37,10 @@ type LikeState struct {
 	// Remaining は現在の所持数。サーバ側の like_balance がそのまま答えになる。
 	Remaining int
 
+	// Capacity は所持上限。残数の分母として画面に出す。定数だが、上限を
+	// 決めるのはサーバであってフロントではないので応答に含める。
+	Capacity int
+
 	// NextRecoveryAt は次に時間回復が起きる時刻。タイマーを出す状態でなければ nil。
 	NextRecoveryAt *time.Time
 
@@ -48,9 +52,8 @@ type LikeState struct {
 // recoveryStateOf は persona 行から時間回復の判定に必要な部分だけを取り出す。
 func recoveryStateOf(p sqlc.Persona) TimeRecoveryState {
 	return TimeRecoveryState{
-		Balance:       int(p.LikeBalance),
-		RecoveryCount: int(p.TimeRecoveryCount),
-		AnchorAt:      p.LikeRecoveryAnchorAt,
+		Balance:  int(p.LikeBalance),
+		AnchorAt: p.LikeRecoveryAnchorAt,
 	}
 }
 
@@ -58,6 +61,7 @@ func recoveryStateOf(p sqlc.Persona) TimeRecoveryState {
 func (s *Service) likeState(p sqlc.Persona, recovered int) LikeState {
 	return LikeState{
 		Remaining:      int(p.LikeBalance),
+		Capacity:       LikeCap,
 		NextRecoveryAt: NextTimeRecoveryAt(recoveryStateOf(p), s.clock.Now()),
 		Recovered:      recovered,
 	}
@@ -70,11 +74,11 @@ func (s *Service) likeState(p sqlc.Persona, recovered int) LikeState {
 // 経過時間から計算する」だけで足りる。バックグラウンドで DB を触り続ける
 // 仕組みは、この規模のゲームには要らない。
 //
-// 付与できるものが無ければ、書き込みにも入らない。ホームと探索は画面を開く
-// たびに呼ばれる一方、実際に回復が起きるのは3時間に1回だけなので、
-// 毎回トランザクションを張るのは無駄。
+// 反映するものが無ければ、書き込みにも入らない。ホームと探索は画面を開く
+// たびに呼ばれる一方、状態が動くのは3時間に1回だけなので、毎回
+// トランザクションを張るのは無駄。
 func (s *Service) SyncTimeRecovery(ctx context.Context, p sqlc.Persona) (sqlc.Persona, LikeState, error) {
-	if TimeRecoveryGrant(recoveryStateOf(p), s.clock.Now()) == 0 {
+	if !EvalTimeRecovery(recoveryStateOf(p), s.clock.Now()).Pending() {
 		return p, s.likeState(p, 0), nil
 	}
 
@@ -110,24 +114,28 @@ func (s *Service) SyncTimeRecovery(ctx context.Context, p sqlc.Persona) (sqlc.Pe
 
 // applyTimeRecovery は行ロックの内側で時間回復を1回だけ評価して反映する。
 //
-// 呼び出し側はこの persona の行ロックを保持していること。付与できるものが
+// 呼び出し側はこの persona の行ロックを保持していること。経過した3時間が
 // 無ければ渡された行をそのまま返す。
+//
+// 起点は経過した3時間単位ぶんすべて進める。所持上限で受け取れなかった分も
+// ここで消費されるので、満タンの間に過ぎた3時間が後から回復に変わることは
+// ない。戻り値の2つ目は実際に増えた数で、これがそのまま画面の通知になる。
 func (s *Service) applyTimeRecovery(ctx context.Context, q *sqlc.Queries, locked sqlc.Persona) (sqlc.Persona, int, error) {
-	grant := TimeRecoveryGrant(recoveryStateOf(locked), s.clock.Now())
-	if grant == 0 {
+	r := EvalTimeRecovery(recoveryStateOf(locked), s.clock.Now())
+	if !r.Pending() {
 		return locked, 0, nil
 	}
 
-	anchor := AdvanceAnchor(*locked.LikeRecoveryAnchorAt, grant)
+	anchor := AdvanceAnchor(*locked.LikeRecoveryAnchorAt, r.Units)
 	updated, err := q.ApplyTimeRecovery(ctx, sqlc.ApplyTimeRecoveryParams{
 		ID:       locked.ID,
-		Amount:   int16(grant),
+		Amount:   int16(r.Grant),
 		AnchorAt: &anchor,
 	})
 	if err != nil {
 		return locked, 0, fmt.Errorf("apply time recovery: %w", err)
 	}
-	return updated, grant, nil
+	return updated, r.Grant, nil
 }
 
 // LikeResult は Like を1つ消費した後にクライアントが必要とする情報。

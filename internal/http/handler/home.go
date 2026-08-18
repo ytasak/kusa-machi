@@ -15,15 +15,18 @@ import (
 )
 
 type homeResponse struct {
-	ServerTime        string       `json:"server_time"`
-	GameDate          string       `json:"game_date"`
-	PersonaGenerated  bool         `json:"persona_generated"`
-	Persona           *personaCard `json:"persona"`
-	RemainingLikes    int          `json:"remaining_likes"`
-	ReceivedLikeCount int64        `json:"received_like_count"`
-	MatchCount        int64        `json:"match_count"`
-	HasUnseenLikes    bool         `json:"has_unseen_likes"`
-	HasUnseenMatches  bool         `json:"has_unseen_matches"`
+	ServerTime       string       `json:"server_time"`
+	GameDate         string       `json:"game_date"`
+	PersonaGenerated bool         `json:"persona_generated"`
+	Persona          *personaCard `json:"persona"`
+	RemainingLikes   int          `json:"remaining_likes"`
+	// LikeCapacity は所持上限。残数の分母として画面に出す。値は定数だが、
+	// 上限を決めるのはサーバであってフロントではないのでここから配る。
+	LikeCapacity      int   `json:"like_capacity"`
+	ReceivedLikeCount int64 `json:"received_like_count"`
+	MatchCount        int64 `json:"match_count"`
+	HasUnseenLikes    bool  `json:"has_unseen_likes"`
+	HasUnseenMatches  bool  `json:"has_unseen_matches"`
 	// ProfileRewardAvailable は「プロフィールを完成させれば Like が回復する」
 	// 状態か。画面はこれを見て事前の訴求を出す。受け取り済みなら false になり、
 	// 取れない報酬を誘導しないで済む。
@@ -53,6 +56,7 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 		ServerTime:     s.Now.In(clock.JST).Format(time.RFC3339),
 		GameDate:       clock.FormatGameDate(s.GameDate),
 		RemainingLikes: matching.DailyLikeBudget,
+		LikeCapacity:   matching.LikeCap,
 		CSRFToken:      s.Participant.CsrfToken,
 		CookieReceived: s.CookieReceived,
 	}
@@ -84,6 +88,7 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	resp.PersonaGenerated = true
 	resp.Persona = &card
 	resp.RemainingLikes = likes.Remaining
+	resp.LikeCapacity = likes.Capacity
 	resp.NextRecoveryAt = jstTime(likes.NextRecoveryAt)
 	resp.LikesRecovered = likes.Recovered
 	resp.ReceivedLikeCount = state.LikesReceived

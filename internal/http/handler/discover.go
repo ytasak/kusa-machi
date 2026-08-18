@@ -23,6 +23,7 @@ type discoverResponse struct {
 	// 残数まわりも返す。探索画面は長く開かれたままになるので、カードを
 	// 継ぎ足すこの往復が、時間回復をヘッダーに反映する機会にもなる。
 	RemainingLikes int     `json:"remaining_likes"`
+	LikeCapacity   int     `json:"like_capacity"`
 	NextRecoveryAt *string `json:"next_recovery_at"`
 	LikesRecovered int     `json:"likes_recovered"`
 }
@@ -73,6 +74,7 @@ func (h *Handler) Discover(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, discoverResponse{
 		Personas:       cards,
 		RemainingLikes: likes.Remaining,
+		LikeCapacity:   likes.Capacity,
 		NextRecoveryAt: jstTime(likes.NextRecoveryAt),
 		LikesRecovered: likes.Recovered,
 	})

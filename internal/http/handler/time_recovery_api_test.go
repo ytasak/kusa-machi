@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"kusamachi/internal/apptest"
+	"kusamachi/internal/clock"
 	"kusamachi/internal/matching"
 )
 
@@ -39,6 +40,19 @@ func requireNextRecovery(t *testing.T, got *string, wantHour, wantMin int) {
 	}
 }
 
+// requireAnchor は回復の起点が JST の期待した壁時計時刻かを確かめる。
+// 上限で1つも増えなかった3時間も起点を進めることの検証に使う。
+func requireAnchor(t *testing.T, app *apptest.App, personaID string, wantHour, wantMin int) {
+	t.Helper()
+	anchor := app.RecoveryAnchor(t, personaID)
+	if anchor == nil {
+		t.Fatalf("like_recovery_anchor_at = null, want %02d:%02d", wantHour, wantMin)
+	}
+	if h, m, _ := anchor.In(clock.JST).Clock(); h != wantHour || m != wantMin {
+		t.Fatalf("like_recovery_anchor_at = %s, want %02d:%02d JST", anchor, wantHour, wantMin)
+	}
+}
+
 func TestTheTimerStaysStoppedUntilTheFirstLikeIsSpent(t *testing.T) {
 	app := apptest.New(t)
 	alice, aliceCard := app.NewStartedClient(t)
@@ -50,6 +64,9 @@ func TestTheTimerStaysStoppedUntilTheFirstLikeIsSpent(t *testing.T) {
 	if home.RemainingLikes != matching.DailyLikeBudget {
 		t.Fatalf("remaining_likes = %d, want the plain budget %d", home.RemainingLikes, matching.DailyLikeBudget)
 	}
+	if home.LikeCapacity != matching.LikeCap {
+		t.Fatalf("like_capacity = %d, want %d", home.LikeCapacity, matching.LikeCap)
+	}
 	if home.LikesRecovered != 0 {
 		t.Fatalf("likes_recovered = %d, want 0", home.LikesRecovered)
 	}
@@ -57,8 +74,7 @@ func TestTheTimerStaysStoppedUntilTheFirstLikeIsSpent(t *testing.T) {
 		t.Fatalf("next_recovery_at = %s, want null before the first like", *home.NextRecoveryAt)
 	}
 
-	state := app.RewardState(t, aliceCard.ID)
-	if state.RecoveryAnchorSet || state.TimeRecoveryCount != 0 {
+	if state := app.RewardState(t, aliceCard.ID); state.RecoveryAnchorSet {
 		t.Fatalf("reward state = %+v, want a stopped timer", state)
 	}
 }
@@ -115,64 +131,95 @@ func TestOneLikeRecoversPerInterval(t *testing.T) {
 	}
 	// 起点が3時間進んだので、次は 18:00。
 	requireNextRecovery(t, home.NextRecoveryAt, 18, 0)
-
-	if state := app.RewardState(t, aliceCard.ID); state.TimeRecoveryCount != 1 {
-		t.Fatalf("time_recovery_count = %d, want 1", state.TimeRecoveryCount)
-	}
+	requireAnchor(t, app, aliceCard.ID, 15, 0)
 }
 
-func TestTwoIntervalsRecoverTwoLikesAtOnce(t *testing.T) {
+// アプリを閉じていた時間も回復時間として経過する。次に開いた時点で、
+// 経過した3時間単位をまとめて計算する。
+func TestTimeAwayFromTheAppRecoversAllAtOnce(t *testing.T) {
 	app := apptest.New(t)
 	alice, aliceCard := app.NewStartedClient(t)
 
 	app.SpendLikes(t, alice, 3)
-	app.Clock.Advance(2 * recoveryInterval)
+
+	// 3時間ごとに見に来る必要はない。9時間半ぶん閉じていた場合、
+	// floor(9.5h / 3h) = 3 回ぶんがまとめて成立する。
+	app.Clock.Advance(3*recoveryInterval + 30*time.Minute)
 
 	home := alice.Home(t)
-	if want := matching.DailyLikeBudget - 3 + matching.MaxTimeRecoveries; home.RemainingLikes != want {
+	if home.LikesRecovered != 3 {
+		t.Fatalf("likes_recovered = %d, want 3", home.LikesRecovered)
+	}
+	if want := matching.DailyLikeBudget - 3 + 3; home.RemainingLikes != want {
 		t.Fatalf("remaining_likes = %d, want %d", home.RemainingLikes, want)
 	}
-	if home.LikesRecovered != matching.MaxTimeRecoveries {
-		t.Fatalf("likes_recovered = %d, want %d", home.LikesRecovered, matching.MaxTimeRecoveries)
-	}
-	// 使い切ったのでタイマーは出さない。
-	if home.NextRecoveryAt != nil {
-		t.Fatalf("next_recovery_at = %s, want null at the daily limit", *home.NextRecoveryAt)
-	}
-	if state := app.RewardState(t, aliceCard.ID); state.TimeRecoveryCount != matching.MaxTimeRecoveries {
-		t.Fatalf("time_recovery_count = %d, want %d", state.TimeRecoveryCount, matching.MaxTimeRecoveries)
-	}
+	// 起点は 12:00 から3回ぶん進んで 21:00。余った30分は次回へ持ち越される。
+	requireAnchor(t, app, aliceCard.ID, 21, 0)
 }
 
-func TestTimeRecoveryStopsAtTwoPerDay(t *testing.T) {
+// 時間回復の回数に1日の上限は無い。同じ日のうちに3回以上続けて起きる。
+func TestTimeRecoveryHasNoDailyLimit(t *testing.T) {
 	app := apptest.New(t)
-	alice, aliceCard := app.NewStartedClient(t)
+	alice, _ := app.NewStartedClient(t)
 
 	app.SpendLikes(t, alice, 5)
 
-	// 3回ぶんの時間が経っていても、受け取れるのは2つまで。
-	app.Clock.Advance(3 * recoveryInterval)
-	if home := alice.Home(t); home.LikesRecovered != matching.MaxTimeRecoveries {
-		t.Fatalf("likes_recovered = %d, want %d", home.LikesRecovered, matching.MaxTimeRecoveries)
-	}
+	for i := 1; i <= 3; i++ {
+		app.Clock.Advance(recoveryInterval)
 
-	// さらに待っても増えない。その日はもう時間では回復しない。
-	app.Clock.Advance(2 * time.Hour)
-	home := alice.Home(t)
-	if home.LikesRecovered != 0 {
-		t.Fatalf("likes_recovered = %d, want 0 after the daily limit", home.LikesRecovered)
-	}
-	if want := matching.DailyLikeBudget - 5 + matching.MaxTimeRecoveries; home.RemainingLikes != want {
-		t.Fatalf("remaining_likes = %d, want %d", home.RemainingLikes, want)
-	}
-	if state := app.RewardState(t, aliceCard.ID); state.TimeRecoveryCount != matching.MaxTimeRecoveries {
-		t.Fatalf("time_recovery_count = %d, want %d", state.TimeRecoveryCount, matching.MaxTimeRecoveries)
+		home := alice.Home(t)
+		if home.LikesRecovered != 1 {
+			t.Fatalf("recovery %d: likes_recovered = %d, want 1", i, home.LikesRecovered)
+		}
+		if want := matching.DailyLikeBudget - 5 + i; home.RemainingLikes != want {
+			t.Fatalf("recovery %d: remaining_likes = %d, want %d", i, home.RemainingLikes, want)
+		}
 	}
 }
 
-// 所持上限に達している間は回復せず、回復回数も消費しない。使い始めれば
-// その経過時間がそのまま回復に変わる。
-func TestTheCapBlocksRecoveryWithoutSpendingTheCount(t *testing.T) {
+// 所持上限を超える回復は失われる。後から Like を使っても戻ってこない。
+func TestRecoveryBeyondTheCapIsLost(t *testing.T) {
+	app := apptest.New(t)
+	alice, aliceCard := app.NewStartedClient(t)
+	bob, bobCard := app.NewStartedClient(t)
+
+	// Match 1回で 10 - 1 + 2 = 11。起点は最初の Like の 12:00。
+	mutualLike(t, alice, aliceCard.ID, bob, bobCard.ID)
+	if state := app.RewardState(t, aliceCard.ID); state.LikeBalance != matching.LikeCap-1 {
+		t.Fatalf("like_balance = %d, want %d", state.LikeBalance, matching.LikeCap-1)
+	}
+
+	// 3回ぶんの時間が経っても、上限まで1つしか空いていないので増えるのは1つ。
+	app.Clock.Advance(3 * recoveryInterval)
+
+	home := alice.Home(t)
+	if home.LikesRecovered != 1 {
+		t.Fatalf("likes_recovered = %d, want 1 — the cap clips the rest", home.LikesRecovered)
+	}
+	if home.RemainingLikes != matching.LikeCap {
+		t.Fatalf("remaining_likes = %d, want %d", home.RemainingLikes, matching.LikeCap)
+	}
+	// 満タンなので待つ意味が無く、タイマーも出さない。
+	if home.NextRecoveryAt != nil {
+		t.Fatalf("next_recovery_at = %s, want null at the cap", *home.NextRecoveryAt)
+	}
+	// 起点は受け取れなかった2回ぶんも含めて3回ぶん進んでいる。
+	requireAnchor(t, app, aliceCard.ID, 21, 0)
+
+	// Like を2つ使って空きを作っても、失われた2回ぶんは戻らない。
+	app.SpendLikes(t, alice, 2)
+	after := alice.Home(t)
+	if after.LikesRecovered != 0 {
+		t.Fatalf("likes_recovered = %d, want 0 — the lost recoveries must not come back", after.LikesRecovered)
+	}
+	if want := matching.LikeCap - 2; after.RemainingLikes != want {
+		t.Fatalf("remaining_likes = %d, want %d", after.RemainingLikes, want)
+	}
+}
+
+// 満タンのまま3時間が過ぎても、回復はストックされない。空きができた時点から
+// 通常の間隔で回復し直す。
+func TestAFullBalanceDoesNotStockRecoveries(t *testing.T) {
 	app := apptest.New(t)
 	alice, aliceCard := app.NewStartedClient(t)
 	bob, bobCard := app.NewStartedClient(t)
@@ -185,8 +232,8 @@ func TestTheCapBlocksRecoveryWithoutSpendingTheCount(t *testing.T) {
 		t.Fatalf("like_balance = %d, want the cap %d", state.LikeBalance, matching.LikeCap)
 	}
 
+	// 満タンのまま2回ぶん経過する。何も増えないが、起点は進む。
 	app.Clock.Advance(2 * recoveryInterval)
-
 	home := alice.Home(t)
 	if home.LikesRecovered != 0 {
 		t.Fatalf("likes_recovered = %d, want 0 at the cap", home.LikesRecovered)
@@ -194,24 +241,24 @@ func TestTheCapBlocksRecoveryWithoutSpendingTheCount(t *testing.T) {
 	if home.RemainingLikes != matching.LikeCap {
 		t.Fatalf("remaining_likes = %d, want %d", home.RemainingLikes, matching.LikeCap)
 	}
-	// 満タンなので待つ意味が無く、タイマーも出さない。
-	if home.NextRecoveryAt != nil {
-		t.Fatalf("next_recovery_at = %s, want null at the cap", *home.NextRecoveryAt)
-	}
-	if state := app.RewardState(t, aliceCard.ID); state.TimeRecoveryCount != 0 {
-		t.Fatalf("time_recovery_count = %d, want 0 — the count must survive the cap", state.TimeRecoveryCount)
-	}
+	requireAnchor(t, app, aliceCard.ID, 18, 0)
 
-	// 2つ使えば、取り置かれていた2回ぶんがそのまま入る。Like の POST も
-	// ホームと同じ lazy 評価を通るため、回復はその往復の中で先に反映される。
-	// よって「どの応答が通知を運んだか」ではなく、最終状態で確かめる。
-	app.SpendLikes(t, alice, 2)
-	after := alice.Home(t)
-	if after.RemainingLikes != matching.LikeCap {
-		t.Fatalf("remaining_likes = %d, want back to %d", after.RemainingLikes, matching.LikeCap)
+	// 1つ使って空きを作る。ストックしていれば、ここで一気に戻ってしまう。
+	app.SpendLikes(t, alice, 1)
+	spent := alice.Home(t)
+	if spent.LikesRecovered != 0 {
+		t.Fatalf("likes_recovered = %d, want 0 — the full hours must not be stocked", spent.LikesRecovered)
 	}
-	if state := app.RewardState(t, aliceCard.ID); state.TimeRecoveryCount != matching.MaxTimeRecoveries {
-		t.Fatalf("time_recovery_count = %d, want %d once there was room", state.TimeRecoveryCount, matching.MaxTimeRecoveries)
+	if want := matching.LikeCap - 1; spent.RemainingLikes != want {
+		t.Fatalf("remaining_likes = %d, want %d", spent.RemainingLikes, want)
+	}
+	// 次の回復は通常の間隔どおり 21:00。
+	requireNextRecovery(t, spent.NextRecoveryAt, 21, 0)
+
+	app.Clock.Advance(recoveryInterval)
+	if next := alice.Home(t); next.LikesRecovered != 1 || next.RemainingLikes != matching.LikeCap {
+		t.Fatalf("after the next interval likes_recovered = %d, remaining_likes = %d, want 1 and %d",
+			next.LikesRecovered, next.RemainingLikes, matching.LikeCap)
 	}
 }
 
@@ -247,11 +294,31 @@ func TestConcurrentAccessGrantsTheRecoveryOnlyOnce(t *testing.T) {
 	}
 
 	state := app.RewardState(t, aliceCard.ID)
-	if state.TimeRecoveryCount != 1 {
-		t.Fatalf("time_recovery_count = %d, want 1", state.TimeRecoveryCount)
-	}
 	if want := matching.DailyLikeBudget - 4 + 1; state.LikeBalance != want {
 		t.Fatalf("like_balance = %d, want %d", state.LikeBalance, want)
+	}
+	requireAnchor(t, app, aliceCard.ID, 15, 0)
+}
+
+// GET で反映した回復を、続く POST がもう一度適用しない。
+func TestARecoveryAppliedByAGetIsNotReappliedByAPost(t *testing.T) {
+	app := apptest.New(t)
+	alice, _ := app.NewStartedClient(t)
+	_, targets := app.NewStartedClients(t, 1)
+
+	app.SpendLikes(t, alice, 3)
+	app.Clock.Advance(recoveryInterval)
+
+	if home := alice.Home(t); home.LikesRecovered != 1 {
+		t.Fatalf("likes_recovered = %d, want 1 on the first read", home.LikesRecovered)
+	}
+
+	res := alice.MustLike(t, targets[0].ID)
+	if res.LikesRecovered != 0 {
+		t.Fatalf("likes_recovered = %d, want 0 — the same interval must not pay twice", res.LikesRecovered)
+	}
+	if want := matching.DailyLikeBudget - 3 + 1 - 1; res.RemainingLikes != want {
+		t.Fatalf("remaining_likes = %d, want %d", res.RemainingLikes, want)
 	}
 }
 
@@ -293,6 +360,9 @@ func TestDiscoverAlsoAppliesTheRecovery(t *testing.T) {
 	}
 	if want := matching.DailyLikeBudget - 2 + 1; res.RemainingLikes != want {
 		t.Fatalf("remaining_likes = %d, want %d", res.RemainingLikes, want)
+	}
+	if res.LikeCapacity != matching.LikeCap {
+		t.Fatalf("like_capacity = %d, want %d", res.LikeCapacity, matching.LikeCap)
 	}
 	requireNextRecovery(t, res.NextRecoveryAt, 18, 0)
 }
@@ -376,14 +446,13 @@ func TestTheRecoveryStateResetsAtTheDayBoundary(t *testing.T) {
 	if home := alice.Home(t); home.LikesRecovered != 1 {
 		t.Fatalf("likes_recovered = %d, want 1 on the first day", home.LikesRecovered)
 	}
-	before := app.RewardState(t, aliceCard.ID)
-	if !before.RecoveryAnchorSet || before.TimeRecoveryCount != 1 {
-		t.Fatalf("reward state = %+v, want a running timer with one recovery", before)
+	if before := app.RewardState(t, aliceCard.ID); !before.RecoveryAnchorSet {
+		t.Fatalf("reward state = %+v, want a running timer", before)
 	}
 
 	app.Clock.Advance(24 * time.Hour)
 
-	// 新しいゲーム日は新しい persona で始まる。前日の起点も回数も残らない。
+	// 新しいゲーム日は新しい persona で始まる。前日の起点も残らない。
 	alice.Home(t)
 	newAlice := alice.GeneratePersona(t)
 	if newAlice.ID == aliceCard.ID {
