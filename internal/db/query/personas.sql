@@ -66,3 +66,28 @@ SELECT
     ) AS has_unseen_matches
 FROM personas p
 WHERE p.participant_id = sqlc.arg('participant_id');
+
+-- name: ClaimProfileReward :one
+-- プロフィール完成報酬の付与。amount は所持上限で切り詰めた「実際に増える数」で、
+-- 上限に達していて 0 のときも受け取り済みにする。仕様どおり溢れた分は失われ、
+-- 同じ日にもう一度もらえることはない。
+--
+-- 呼び出し側は LockPersona でこの行を押さえてから、フラグを読んで amount を
+-- 決める。よってページ再読み込みや同じ PATCH の再送では二度目の付与が起きない。
+UPDATE personas
+SET bonus_likes = bonus_likes + sqlc.arg('amount'),
+    profile_reward_claimed = TRUE
+WHERE id = sqlc.arg('id')
+RETURNING *;
+
+-- name: ClaimMatchReward :one
+-- Match 報酬の付与。回数は1日2回で打ち止めなので、上限判定を済ませた
+-- 呼び出し側だけがこれを実行する。amount が 0 でも回数は消費する。
+--
+-- Like のトランザクションが lockPair でこの行を FOR UPDATE しているため、
+-- 同時 Like でも回数が2を超えることはない。
+UPDATE personas
+SET bonus_likes = bonus_likes + sqlc.arg('amount'),
+    match_reward_count = match_reward_count + 1
+WHERE id = sqlc.arg('id')
+RETURNING bonus_likes;
