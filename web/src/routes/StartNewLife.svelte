@@ -23,6 +23,7 @@
   <div class={styles.lead}>
     <p>毎日ひとつ、その日だけのあなたが配られます。</p>
     <p>Likeは1日10回。0時にすべて消えます。</p>
+    <p>プロフィール完成で+1、Match成立で+2だけ戻ります。</p>
   </div>
 
   <button class="{ui.primary} {styles.cta}" onclick={onStart}>新しい人生を始める</button>

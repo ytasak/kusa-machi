@@ -8,6 +8,7 @@
   import { api, ApiError } from '../lib/api.js';
   import { session, withDayGuard, LIKE_CAP } from '../lib/session.svelte.js';
   import { discover, currentCard, consumeCurrent, ensureCards } from '../lib/discover.svelte.js';
+  import { go, SCREENS } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
   import { vibrate, HAPTICS } from '../lib/haptics.js';
 
@@ -179,6 +180,20 @@
         <Icon name="heart" size={30} filled />
       </button>
     </div>
+
+    <!-- Like が尽きた瞬間がいちばん「どうすれば増えるのか」を知りたいところ。
+         まだ取れる報酬があればそれを出し、無ければ Match だけを案内する。 -->
+    {#if outOfLikes}
+      {#if session.profileRewardAvailable}
+        <button class={styles.recovery} onclick={() => go(SCREENS.profile)}>
+          Likeを使い切りました。プロフィールを完成させると<strong>+1</strong>戻ります
+        </button>
+      {:else}
+        <p class={styles.recoveryNote}>
+          Likeを使い切りました。Matchが決まると<strong>+2</strong>戻ります（1日2回まで）
+        </p>
+      {/if}
+    {/if}
   {:else if discover.loading}
     <p class={ui.empty}>読み込み中...</p>
   {:else if discover.error}

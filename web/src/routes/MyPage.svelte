@@ -48,6 +48,16 @@
     </div>
   </div>
 
+  <!-- 報酬は完成させた後にしか見えないと気づけない。残りLike のすぐ下に置いて、
+       「何をすれば増えるのか」を数字と並べて示す。押すとそのまま編集画面へ。 -->
+  {#if session.profileRewardAvailable}
+    <button class={styles.reward} onclick={() => go(SCREENS.profile)}>
+      <Icon name="heart" size={15} filled />
+      <span class={styles.rewardText}>プロフィールを完成させると <strong>Like +1</strong></span>
+      <span class={styles.chevron}><Icon name="chevron" size={18} /></span>
+    </button>
+  {/if}
+
   {#if session.hasUnseenLikes}
     <p class={ui.notice}><Icon name="heart" size={15} filled />新しいLikeがあります</p>
   {/if}

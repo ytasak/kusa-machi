@@ -31,6 +31,9 @@ export const session = $state({
   hasUnseenLikes: false,
   hasUnseenMatches: false,
 
+  /** プロフィール完成で Like が回復する状態か。事前の訴求を出すかの判断に使う。 */
+  profileRewardAvailable: false,
+
   /** ブラウザの時計に足すとサーバ時刻になるミリ秒。 */
   clockOffsetMs: 0,
   /** ゲーム日が終わり、新しい人生を始める必要がある状態になったら true。 */
@@ -78,6 +81,7 @@ function applyHome(home) {
   session.matchCount = home.match_count;
   session.hasUnseenLikes = home.has_unseen_likes;
   session.hasUnseenMatches = home.has_unseen_matches;
+  session.profileRewardAvailable = home.profile_reward_available;
   session.dayEnded = false;
 
   setCsrfToken(home.csrf_token);
@@ -151,6 +155,8 @@ export async function updateProfile(fields) {
   const res = await api.patch('/api/persona/profile', fields);
   session.persona = res.persona;
   session.remainingLikes = res.remaining_likes;
+  // 受け取り済みになったら、その場で訴求を引っ込める。
+  session.profileRewardAvailable = res.profile_reward_available;
   return res.likes_gained;
 }
 

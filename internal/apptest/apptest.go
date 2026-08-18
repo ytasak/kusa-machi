@@ -190,8 +190,10 @@ type HomeResponse struct {
 	MatchCount        int64        `json:"match_count"`
 	HasUnseenLikes    bool         `json:"has_unseen_likes"`
 	HasUnseenMatches  bool         `json:"has_unseen_matches"`
-	CSRFToken         string       `json:"csrf_token"`
-	CookieReceived    bool         `json:"cookie_received"`
+
+	ProfileRewardAvailable bool   `json:"profile_reward_available"`
+	CSRFToken              string `json:"csrf_token"`
+	CookieReceived         bool   `json:"cookie_received"`
 }
 
 // PersonaCard は公開 Persona のペイロードに対応する。
@@ -273,9 +275,10 @@ type LikeResponse struct {
 
 // ProfileUpdateResponse は PATCH /api/persona/profile に対応する。
 type ProfileUpdateResponse struct {
-	Persona        PersonaCard `json:"persona"`
-	RemainingLikes int         `json:"remaining_likes"`
-	LikesGained    int         `json:"likes_gained"`
+	Persona                PersonaCard `json:"persona"`
+	RemainingLikes         int         `json:"remaining_likes"`
+	LikesGained            int         `json:"likes_gained"`
+	ProfileRewardAvailable bool        `json:"profile_reward_available"`
 }
 
 // PassResponse は POST /api/passes に対応する。

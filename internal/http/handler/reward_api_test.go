@@ -398,3 +398,40 @@ func TestRewardStateResetsAtTheDayBoundary(t *testing.T) {
 		t.Fatalf("match_reward_count = %d, want 1", state.MatchRewardCount)
 	}
 }
+
+func TestProfileRewardAvailabilityIsExposedToTheClient(t *testing.T) {
+	// 画面が事前の訴求を出せるかは、この1つのフラグだけで決まる。
+	app := apptest.New(t)
+	alice, _ := app.NewStartedClient(t)
+
+	if home := alice.Home(t); !home.ProfileRewardAvailable {
+		t.Fatal("a fresh persona must be able to earn the profile reward")
+	}
+
+	// 途中まで埋めただけなら、まだ受け取れる。
+	if res := alice.MustUpdateProfile(t, map[string]any{"name": "さとし"}); !res.ProfileRewardAvailable {
+		t.Fatal("a partial profile must keep the reward available")
+	}
+
+	// 完成させた保存の応答で、その場で false に変わる。画面はここで訴求を引っ込める。
+	if res := alice.CompleteProfile(t); res.ProfileRewardAvailable {
+		t.Fatal("the reward must not look available right after it was claimed")
+	}
+	if home := alice.Home(t); home.ProfileRewardAvailable {
+		t.Fatal("home must not offer a reward that was already claimed")
+	}
+
+	// 項目を消しても復活しない。取れない報酬を誘導しないため。
+	alice.MustUpdateProfile(t, map[string]any{"name": "", "hobby": "", "bio": ""})
+	if home := alice.Home(t); home.ProfileRewardAvailable {
+		t.Fatal("clearing the fields must not make the reward look available again")
+	}
+
+	// 翌日は新しい persona なので、また訴求できる。
+	app.Clock.Advance(24 * time.Hour)
+	alice.Home(t)
+	alice.GeneratePersona(t)
+	if home := alice.Home(t); !home.ProfileRewardAvailable {
+		t.Fatal("a new game day must offer the profile reward again")
+	}
+}

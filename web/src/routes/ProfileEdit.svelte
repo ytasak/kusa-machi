@@ -128,6 +128,15 @@
 
     {#if photoError}<p class={ui.error}>{photoError}</p>{/if}
 
+    <!-- 編集の手前に条件を出す。3つ埋めれば回復すると分かっていないと、
+         そもそも埋める理由が伝わらない。 -->
+    {#if session.profileRewardAvailable}
+      <p class={ui.notice}>
+        <Icon name="heart" size={15} filled />
+        名前・趣味・ひとことをすべて埋めると Like +1（1日1回）
+      </p>
+    {/if}
+
     <form class={styles.form} onsubmit={save}>
       <div class={styles.field}>
         <div class={styles.labelRow}>

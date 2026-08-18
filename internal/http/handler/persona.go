@@ -68,6 +68,9 @@ type profileUpdateResponse struct {
 	// LikesGained は今回の保存で実際に増えた Like の数。報酬の条件を
 	// 満たさないときも、所持上限で溢れたときも 0 になる。
 	LikesGained int `json:"likes_gained"`
+	// ProfileRewardAvailable はまだ報酬を受け取れるか。保存の直後に
+	// 訴求を引っ込めるために返す。
+	ProfileRewardAvailable bool `json:"profile_reward_available"`
 }
 
 // UpdateProfile は PATCH /api/persona/profile を実装する。
@@ -109,5 +112,7 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		Persona:        newPersonaCard(result.Persona),
 		RemainingLikes: result.RemainingLikes,
 		LikesGained:    result.LikesGained,
+		// 報酬は同じトランザクションで判定済み。返ってきた行がそのまま答えになる。
+		ProfileRewardAvailable: !result.Persona.ProfileRewardClaimed,
 	})
 }
