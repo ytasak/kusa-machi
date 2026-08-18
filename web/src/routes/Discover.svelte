@@ -5,7 +5,6 @@
   import Icon from '../components/Icon.svelte';
   import PersonaCard from '../components/PersonaCard.svelte';
   import MatchAnimation from '../components/MatchAnimation.svelte';
-  import LikeRecovery from '../components/LikeRecovery.svelte';
   import { api, ApiError } from '../lib/api.js';
   import { session, withDayGuard, applyLikeState } from '../lib/session.svelte.js';
   import { discover, currentCard, consumeCurrent, ensureCards } from '../lib/discover.svelte.js';
@@ -176,9 +175,6 @@
         {/if}
       </div>
     </div>
-
-    <!-- Like の数字はヘッダーにある。ここに出すのは「次にいつ増えるか」だけ。 -->
-    <LikeRecovery />
 
     <div class={ui.actions}>
       <button class="{ui.circle} {ui.circlePass}" onclick={onPass} aria-label="パス">

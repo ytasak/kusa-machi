@@ -35,7 +35,10 @@ export const session = $state({
    * 画面側は「null なら出さない」だけを見ればよい。
    */
   nextRecoveryAt: null,
-  /** 直近の応答で時間回復した Like 数。通知を出したら 0 に戻す。 */
+  /**
+   * 直近の応答で時間回復した Like 数。ヘッダーがこれを使って、開いた時点で
+   * すでに反映されている回復ぶんも数字が上がる様子として見せる。
+   */
   likesRecovered: 0,
   receivedLikeCount: 0,
   matchCount: 0,
@@ -61,13 +64,9 @@ export function applyLikeState(res) {
   session.remainingLikes = res.remaining_likes;
   session.likeCapacity = res.like_capacity;
   session.nextRecoveryAt = res.next_recovery_at ? new Date(res.next_recovery_at).getTime() : null;
-  // 回復は3時間に1回しか起きない。通知は上書きせず、出し終わるまで残す。
+  // 0 では上書きしない。起動直後はホームに続けて探すの応答も届き、回復を
+  // 運んでいるのは前者だけなので、後者に消されるとヘッダーが演出を出せない。
   if (res.likes_recovered > 0) session.likesRecovered = res.likes_recovered;
-}
-
-/** 回復の通知を引っ込める。表示した側が呼ぶ。 */
-export function clearRecoveryNotice() {
-  session.likesRecovered = 0;
 }
 
 /**
