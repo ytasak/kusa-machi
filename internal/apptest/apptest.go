@@ -191,9 +191,11 @@ type HomeResponse struct {
 	HasUnseenLikes    bool         `json:"has_unseen_likes"`
 	HasUnseenMatches  bool         `json:"has_unseen_matches"`
 
-	ProfileRewardAvailable bool   `json:"profile_reward_available"`
-	CSRFToken              string `json:"csrf_token"`
-	CookieReceived         bool   `json:"cookie_received"`
+	ProfileRewardAvailable bool    `json:"profile_reward_available"`
+	NextRecoveryAt         *string `json:"next_recovery_at"`
+	LikesRecovered         int     `json:"likes_recovered"`
+	CSRFToken              string  `json:"csrf_token"`
+	CookieReceived         bool    `json:"cookie_received"`
 }
 
 // PersonaCard は公開 Persona のペイロードに対応する。
@@ -261,12 +263,17 @@ func (a *App) NewStartedClients(t *testing.T, n int) ([]*Client, []PersonaCard) 
 
 // DiscoverResponse は GET /api/discover に対応する。
 type DiscoverResponse struct {
-	Personas []PersonaCard `json:"personas"`
+	Personas       []PersonaCard `json:"personas"`
+	RemainingLikes int           `json:"remaining_likes"`
+	NextRecoveryAt *string       `json:"next_recovery_at"`
+	LikesRecovered int           `json:"likes_recovered"`
 }
 
 // LikeResponse は POST /api/likes に対応する。
 type LikeResponse struct {
 	RemainingLikes int          `json:"remaining_likes"`
+	NextRecoveryAt *string      `json:"next_recovery_at"`
+	LikesRecovered int          `json:"likes_recovered"`
 	Matched        bool         `json:"matched"`
 	MatchID        *string      `json:"match_id"`
 	LikesGained    int          `json:"likes_gained"`
@@ -277,6 +284,8 @@ type LikeResponse struct {
 type ProfileUpdateResponse struct {
 	Persona                PersonaCard `json:"persona"`
 	RemainingLikes         int         `json:"remaining_likes"`
+	NextRecoveryAt         *string     `json:"next_recovery_at"`
+	LikesRecovered         int         `json:"likes_recovered"`
 	LikesGained            int         `json:"likes_gained"`
 	ProfileRewardAvailable bool        `json:"profile_reward_available"`
 }
@@ -376,22 +385,30 @@ func (a *App) ExposureCount(t *testing.T, personaID string) int {
 	return count
 }
 
-// RewardState は Like 回復の当日状態をデータベースから直接読む。
-// API はこれらを公開しないので、二重付与の検証にはこの覗き穴を使う。
+// RewardState は Like の残高と回復の当日状態をデータベースから直接読む。
+// API はこれらをそのまま公開しないので、二重付与の検証にはこの覗き穴を使う。
 type RewardState struct {
-	BonusLikes           int
+	LikeBalance          int
 	ProfileRewardClaimed bool
 	MatchRewardCount     int
+	TimeRecoveryCount    int
+
+	// RecoveryAnchorSet は時間回復のタイマーが動き出しているか。時刻そのものを
+	// 持たないのは、この構造体をまるごと比較して「状態が動いていない」ことを
+	// 確かめるテストがあるため。ポインタを持つと読むたびに不一致になる。
+	RecoveryAnchorSet bool
 }
 
-// RewardState は Persona の回復状態を返す。
+// RewardState は Persona の残高と回復状態を返す。
 func (a *App) RewardState(t *testing.T, personaID string) RewardState {
 	t.Helper()
 	var out RewardState
 	err := a.Pool.QueryRow(t.Context(),
-		`SELECT bonus_likes, profile_reward_claimed, match_reward_count
+		`SELECT like_balance, profile_reward_claimed, match_reward_count,
+		        time_recovery_count, like_recovery_anchor_at IS NOT NULL
 		   FROM personas WHERE id = $1`, personaID,
-	).Scan(&out.BonusLikes, &out.ProfileRewardClaimed, &out.MatchRewardCount)
+	).Scan(&out.LikeBalance, &out.ProfileRewardClaimed, &out.MatchRewardCount,
+		&out.TimeRecoveryCount, &out.RecoveryAnchorSet)
 	if err != nil {
 		t.Fatalf("read reward state: %v", err)
 	}

@@ -1,8 +1,3 @@
--- name: CountLikesSent :one
--- 当日消費した Like 数。前日の Persona は二度と行動できないため likes の行は
--- 常に当日の Persona を指す。したがって日付での絞り込みは不要。
-SELECT COUNT(*) FROM likes WHERE from_persona_id = $1;
-
 -- name: LikeExists :one
 SELECT EXISTS (
     SELECT 1 FROM likes

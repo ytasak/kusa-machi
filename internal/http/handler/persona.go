@@ -65,6 +65,11 @@ func (h *Handler) MyPersona(w http.ResponseWriter, r *http.Request) {
 type profileUpdateResponse struct {
 	Persona        personaCard `json:"persona"`
 	RemainingLikes int         `json:"remaining_likes"`
+	// NextRecoveryAt は保存後の次の時間回復の時刻。報酬で所持上限に達すると
+	// 待つ意味が無くなるため、ここで null に変わることがある。
+	NextRecoveryAt *string `json:"next_recovery_at"`
+	// LikesRecovered はこのリクエストの中で時間回復した Like の数。
+	LikesRecovered int `json:"likes_recovered"`
 	// LikesGained は今回の保存で実際に増えた Like の数。報酬の条件を
 	// 満たさないときも、所持上限で溢れたときも 0 になる。
 	LikesGained int `json:"likes_gained"`
@@ -110,7 +115,9 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 
 	response.JSON(w, http.StatusOK, profileUpdateResponse{
 		Persona:        newPersonaCard(result.Persona),
-		RemainingLikes: result.RemainingLikes,
+		RemainingLikes: result.Likes.Remaining,
+		NextRecoveryAt: jstTime(result.Likes.NextRecoveryAt),
+		LikesRecovered: result.Likes.Recovered,
 		LikesGained:    result.LikesGained,
 		// 報酬は同じトランザクションで判定済み。返ってきた行がそのまま答えになる。
 		ProfileRewardAvailable: !result.Persona.ProfileRewardClaimed,

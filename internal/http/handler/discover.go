@@ -20,6 +20,11 @@ const maxExcludeIDs = 50
 
 type discoverResponse struct {
 	Personas []personaCard `json:"personas"`
+	// 残数まわりも返す。探索画面は長く開かれたままになるので、カードを
+	// 継ぎ足すこの往復が、時間回復をヘッダーに反映する機会にもなる。
+	RemainingLikes int     `json:"remaining_likes"`
+	NextRecoveryAt *string `json:"next_recovery_at"`
+	LikesRecovered int     `json:"likes_recovered"`
 }
 
 // Discover は GET /api/discover を実装する。
@@ -31,6 +36,13 @@ func (h *Handler) Discover(w http.ResponseWriter, r *http.Request) {
 	s := middleware.SessionFrom(ctx)
 
 	self, err := h.ownPersona(ctx, s.Participant.ID)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	// ホームと同じ lazy 評価。探索を開いたままの人にも回復が届く。
+	self, likes, err := h.matching.SyncTimeRecovery(ctx, self)
 	if err != nil {
 		response.Error(w, err)
 		return
@@ -58,7 +70,12 @@ func (h *Handler) Discover(w http.ResponseWriter, r *http.Request) {
 		cards = append(cards, newPersonaCard(p))
 	}
 
-	response.JSON(w, http.StatusOK, discoverResponse{Personas: cards})
+	response.JSON(w, http.StatusOK, discoverResponse{
+		Personas:       cards,
+		RemainingLikes: likes.Remaining,
+		NextRecoveryAt: jstTime(likes.NextRecoveryAt),
+		LikesRecovered: likes.Recovered,
+	})
 }
 
 // parseExcludeIDs はフロントエンドが持つローカルな Pass クールダウン一覧を読む。

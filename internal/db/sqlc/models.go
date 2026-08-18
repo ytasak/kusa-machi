@@ -57,7 +57,9 @@ type Persona struct {
 	ExposureCount        int32
 	CreatedAt            time.Time
 	PhotoUpdatedAt       *time.Time
-	BonusLikes           int16
 	ProfileRewardClaimed bool
 	MatchRewardCount     int16
+	LikeBalance          int16
+	TimeRecoveryCount    int16
+	LikeRecoveryAnchorAt *time.Time
 }

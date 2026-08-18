@@ -27,8 +27,14 @@ type homeResponse struct {
 	// ProfileRewardAvailable は「プロフィールを完成させれば Like が回復する」
 	// 状態か。画面はこれを見て事前の訴求を出す。受け取り済みなら false になり、
 	// 取れない報酬を誘導しないで済む。
-	ProfileRewardAvailable bool   `json:"profile_reward_available"`
-	CSRFToken              string `json:"csrf_token"`
+	ProfileRewardAvailable bool `json:"profile_reward_available"`
+	// NextRecoveryAt は次に時間回復が起きる時刻。タイマーを出す状態でなければ
+	// null。画面はこの null をそのまま「タイマーを表示しない」条件に使える。
+	NextRecoveryAt *string `json:"next_recovery_at"`
+	// LikesRecovered はこのリクエストの中で時間回復した Like の数。0 より
+	// 大きいときだけ、画面が軽い通知を出す。
+	LikesRecovered int    `json:"likes_recovered"`
+	CSRFToken      string `json:"csrf_token"`
 	// CookieReceived が2回続けて false なら、ブラウザが Cookie を保存して
 	// いない。iframe 埋め込み時にサードパーティ Cookie を遮断されると起きる。
 	CookieReceived bool `json:"cookie_received"`
@@ -66,15 +72,25 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	card := newPersonaCard(state.Persona)
+	// 時間回復はここで lazy に評価する。ホームは画面を開くたびに呼ばれるため、
+	// 3時間ごとのジョブを持たずにこれだけで回復が行き渡る。
+	p, likes, err := h.matching.SyncTimeRecovery(ctx, state.Persona)
+	if err != nil {
+		response.Error(w, err)
+		return
+	}
+
+	card := newPersonaCard(p)
 	resp.PersonaGenerated = true
 	resp.Persona = &card
-	resp.RemainingLikes = matching.RemainingLikes(state.LikesSent, state.Persona.BonusLikes)
+	resp.RemainingLikes = likes.Remaining
+	resp.NextRecoveryAt = jstTime(likes.NextRecoveryAt)
+	resp.LikesRecovered = likes.Recovered
 	resp.ReceivedLikeCount = state.LikesReceived
 	resp.MatchCount = state.MatchCount
 	resp.HasUnseenLikes = state.HasUnseenLikes
 	resp.HasUnseenMatches = state.HasUnseenMatches
-	resp.ProfileRewardAvailable = !state.Persona.ProfileRewardClaimed
+	resp.ProfileRewardAvailable = !p.ProfileRewardClaimed
 
 	response.JSON(w, http.StatusOK, resp)
 }

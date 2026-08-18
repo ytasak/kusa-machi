@@ -43,8 +43,8 @@ func TestProfileCompletionGrantsOneLike(t *testing.T) {
 	}
 
 	state := app.RewardState(t, aliceCard.ID)
-	if state.BonusLikes != 1 || !state.ProfileRewardClaimed {
-		t.Fatalf("reward state = %+v, want bonus 1 and claimed", state)
+	if state.LikeBalance != matching.DailyLikeBudget+1 || !state.ProfileRewardClaimed {
+		t.Fatalf("reward state = %+v, want a balance of 11 and claimed", state)
 	}
 }
 
@@ -70,7 +70,7 @@ func TestPartialProfileGrantsNothing(t *testing.T) {
 		}
 	}
 
-	if state := app.RewardState(t, aliceCard.ID); state.BonusLikes != 0 || state.ProfileRewardClaimed {
+	if state := app.RewardState(t, aliceCard.ID); state.LikeBalance != matching.DailyLikeBudget || state.ProfileRewardClaimed {
 		t.Fatalf("reward state = %+v, want untouched", state)
 	}
 
@@ -97,8 +97,8 @@ func TestProfileRewardIsGrantedOnlyOncePerDay(t *testing.T) {
 		t.Fatalf("remaining_likes = %d, want %d", second.RemainingLikes, want)
 	}
 
-	if state := app.RewardState(t, aliceCard.ID); state.BonusLikes != 1 {
-		t.Fatalf("bonus_likes = %d, want 1 after a resend", state.BonusLikes)
+	if state := app.RewardState(t, aliceCard.ID); state.LikeBalance != matching.DailyLikeBudget+1 {
+		t.Fatalf("like_balance = %d, want 11 after a resend", state.LikeBalance)
 	}
 }
 
@@ -116,8 +116,8 @@ func TestProfileRewardDoesNotReturnAfterClearingFields(t *testing.T) {
 	if again.LikesGained != 0 {
 		t.Fatalf("re-completing the profile granted %d likes", again.LikesGained)
 	}
-	if state := app.RewardState(t, aliceCard.ID); state.BonusLikes != 1 {
-		t.Fatalf("bonus_likes = %d, want 1", state.BonusLikes)
+	if state := app.RewardState(t, aliceCard.ID); state.LikeBalance != matching.DailyLikeBudget+1 {
+		t.Fatalf("like_balance = %d, want 11", state.LikeBalance)
 	}
 }
 
@@ -148,8 +148,8 @@ func TestProfileRewardIsClippedAtTheLikeCap(t *testing.T) {
 	if !state.ProfileRewardClaimed {
 		t.Fatal("the profile reward slot must be consumed even when nothing was gained")
 	}
-	if state.BonusLikes != matching.MatchReward*2 {
-		t.Fatalf("bonus_likes = %d, want %d", state.BonusLikes, matching.MatchReward*2)
+	if state.LikeBalance != matching.LikeCap {
+		t.Fatalf("like_balance = %d, want the cap %d", state.LikeBalance, matching.LikeCap)
 	}
 }
 
@@ -170,8 +170,9 @@ func TestMatchRewardIsGrantedTwiceThenStops(t *testing.T) {
 	if state.MatchRewardCount != matching.MaxMatchRewards {
 		t.Fatalf("match_reward_count = %d, want %d", state.MatchRewardCount, matching.MaxMatchRewards)
 	}
-	if want := matching.MatchReward * matching.MaxMatchRewards; state.BonusLikes != want {
-		t.Fatalf("bonus_likes = %d, want %d", state.BonusLikes, want)
+	// Like を3つ使い、そのうち2件の Match で +2 ずつ受け取った。
+	if want := matching.DailyLikeBudget - 3 + matching.MatchReward*matching.MaxMatchRewards; state.LikeBalance != want {
+		t.Fatalf("like_balance = %d, want %d", state.LikeBalance, want)
 	}
 }
 
@@ -193,8 +194,8 @@ func TestMatchRewardGoesToBothSides(t *testing.T) {
 		{"bob", bobCard.ID, bob.Home(t)},
 	} {
 		state := app.RewardState(t, c.id)
-		if state.MatchRewardCount != 1 || state.BonusLikes != matching.MatchReward {
-			t.Fatalf("%s reward state = %+v, want one match reward", c.name, state)
+		if want := matching.DailyLikeBudget - 1 + matching.MatchReward; state.MatchRewardCount != 1 || state.LikeBalance != want {
+			t.Fatalf("%s reward state = %+v, want one match reward and a balance of %d", c.name, state, want)
 		}
 		// Like を1つ使って Match したので、残数は 10 - 1 + 2。
 		if want := matching.DailyLikeBudget - 1 + matching.MatchReward; c.home.RemainingLikes != want {
@@ -261,8 +262,9 @@ func TestConcurrentMatchesNeverExceedTheRewardLimit(t *testing.T) {
 	if state.MatchRewardCount != matching.MaxMatchRewards {
 		t.Fatalf("match_reward_count = %d, want exactly %d", state.MatchRewardCount, matching.MaxMatchRewards)
 	}
-	if want := matching.MatchReward * matching.MaxMatchRewards; state.BonusLikes != want {
-		t.Fatalf("bonus_likes = %d, want %d", state.BonusLikes, want)
+	// 5つ送って、打ち止めまでの2件ぶんだけ受け取った。
+	if want := matching.DailyLikeBudget - partnerCount + matching.MatchReward*matching.MaxMatchRewards; state.LikeBalance != want {
+		t.Fatalf("like_balance = %d, want %d", state.LikeBalance, want)
 	}
 	if home := alice.Home(t); home.RemainingLikes > matching.LikeCap {
 		t.Fatalf("remaining_likes = %d, over the cap %d", home.RemainingLikes, matching.LikeCap)
@@ -327,9 +329,9 @@ func TestRecoveredLikesAreActuallySpendable(t *testing.T) {
 	mutualLike(t, alice, aliceCard.ID, carol, carolCard.ID)
 	sent++
 
-	// ここで回復は満額入っている。DB の CHECK 制約の上限とも一致する。
-	if state := app.RewardState(t, aliceCard.ID); state.BonusLikes != maxUsable-matching.DailyLikeBudget {
-		t.Fatalf("bonus_likes = %d, want %d", state.BonusLikes, maxUsable-matching.DailyLikeBudget)
+	// ここで回復は満額入っている。残高は「使える総量 - すでに送った数」。
+	if state := app.RewardState(t, aliceCard.ID); state.LikeBalance != maxUsable-sent {
+		t.Fatalf("like_balance = %d, want %d", state.LikeBalance, maxUsable-sent)
 	}
 
 	// 残りを使い切る。回復ぶんがちゃんと使えるかを、上限で弾かれるまで
@@ -378,8 +380,9 @@ func TestRewardStateResetsAtTheDayBoundary(t *testing.T) {
 	if newAlice.ID == aliceCard.ID {
 		t.Fatal("expected a fresh persona for the new day")
 	}
-	if state := app.RewardState(t, newAlice.ID); state != (apptest.RewardState{}) {
-		t.Fatalf("reward state = %+v, want everything back to zero", state)
+	fresh := apptest.RewardState{LikeBalance: matching.DailyLikeBudget}
+	if state := app.RewardState(t, newAlice.ID); state != fresh {
+		t.Fatalf("reward state = %+v, want a fresh %+v", state, fresh)
 	}
 	if home := alice.Home(t); home.RemainingLikes != matching.DailyLikeBudget {
 		t.Fatalf("remaining_likes = %d, want the plain budget %d", home.RemainingLikes, matching.DailyLikeBudget)

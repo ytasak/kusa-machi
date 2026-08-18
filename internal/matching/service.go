@@ -11,6 +11,7 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 
 	"kusamachi/internal/apperr"
+	"kusamachi/internal/clock"
 	"kusamachi/internal/db/sqlc"
 )
 
@@ -18,21 +19,123 @@ import (
 // いずれも、市場のルールを強制するのがアプリケーションではなくデータベースに
 // なるように書かれている。
 type Service struct {
-	pool *pgxpool.Pool
-	q    *sqlc.Queries
+	pool  *pgxpool.Pool
+	q     *sqlc.Queries
+	clock clock.Clock
 }
 
 // NewService は接続プールの上にサービスを構築する。
-func NewService(pool *pgxpool.Pool) *Service {
-	return &Service{pool: pool, q: sqlc.New(pool)}
+//
+// 時計を受け取るのは時間回復のため。回復の判定は「起点から3時間経ったか」で
+// あって、テストでは任意の時刻を入れられる必要がある。
+func NewService(pool *pgxpool.Pool, clk clock.Clock) *Service {
+	return &Service{pool: pool, q: sqlc.New(pool), clock: clk}
+}
+
+// LikeState は Like の残数まわりで画面が必要とする状態。
+type LikeState struct {
+	// Remaining は現在の所持数。サーバ側の like_balance がそのまま答えになる。
+	Remaining int
+
+	// NextRecoveryAt は次に時間回復が起きる時刻。タイマーを出す状態でなければ nil。
+	NextRecoveryAt *time.Time
+
+	// Recovered はこのリクエストの中で時間回復した数。画面はこれが 0 より
+	// 大きいときだけ「Likeが回復しました」を出す。
+	Recovered int
+}
+
+// recoveryStateOf は persona 行から時間回復の判定に必要な部分だけを取り出す。
+func recoveryStateOf(p sqlc.Persona) TimeRecoveryState {
+	return TimeRecoveryState{
+		Balance:       int(p.LikeBalance),
+		RecoveryCount: int(p.TimeRecoveryCount),
+		AnchorAt:      p.LikeRecoveryAnchorAt,
+	}
+}
+
+// likeState は反映済みの persona 行から画面向けの状態を組み立てる。
+func (s *Service) likeState(p sqlc.Persona, recovered int) LikeState {
+	return LikeState{
+		Remaining:      int(p.LikeBalance),
+		NextRecoveryAt: NextTimeRecoveryAt(recoveryStateOf(p), s.clock.Now()),
+		Recovered:      recovered,
+	}
+}
+
+// SyncTimeRecovery は時間回復を lazy に評価して反映し、更新後の persona と
+// 画面向けの状態を返す。残数を返すエンドポイントはまずこれを通す。
+//
+// 3時間ごとの Cron や常駐タイマーは持たない。回復は「誰かが見に来た時点で
+// 経過時間から計算する」だけで足りる。バックグラウンドで DB を触り続ける
+// 仕組みは、この規模のゲームには要らない。
+//
+// 付与できるものが無ければ、書き込みにも入らない。ホームと探索は画面を開く
+// たびに呼ばれる一方、実際に回復が起きるのは3時間に1回だけなので、
+// 毎回トランザクションを張るのは無駄。
+func (s *Service) SyncTimeRecovery(ctx context.Context, p sqlc.Persona) (sqlc.Persona, LikeState, error) {
+	if TimeRecoveryGrant(recoveryStateOf(p), s.clock.Now()) == 0 {
+		return p, s.likeState(p, 0), nil
+	}
+
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return p, LikeState{}, fmt.Errorf("begin recovery transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // コミット済みなら何もしない
+
+	q := s.q.WithTx(tx)
+
+	// ロックを取ってから状態を読み直す。上の判定に使った p はロックの外で
+	// 読んだもので、複数のタブが同時に来ていれば古い。二重付与を防ぐのは
+	// この読み直しであって、上の早期リターンではない。
+	locked, err := q.LockPersona(ctx, p.ID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return p, LikeState{}, apperr.PersonaNotGenerated
+	}
+	if err != nil {
+		return p, LikeState{}, fmt.Errorf("lock persona: %w", err)
+	}
+
+	updated, recovered, err := s.applyTimeRecovery(ctx, q, locked)
+	if err != nil {
+		return p, LikeState{}, err
+	}
+
+	if err := tx.Commit(ctx); err != nil {
+		return p, LikeState{}, fmt.Errorf("commit recovery: %w", err)
+	}
+	return updated, s.likeState(updated, recovered), nil
+}
+
+// applyTimeRecovery は行ロックの内側で時間回復を1回だけ評価して反映する。
+//
+// 呼び出し側はこの persona の行ロックを保持していること。付与できるものが
+// 無ければ渡された行をそのまま返す。
+func (s *Service) applyTimeRecovery(ctx context.Context, q *sqlc.Queries, locked sqlc.Persona) (sqlc.Persona, int, error) {
+	grant := TimeRecoveryGrant(recoveryStateOf(locked), s.clock.Now())
+	if grant == 0 {
+		return locked, 0, nil
+	}
+
+	anchor := AdvanceAnchor(*locked.LikeRecoveryAnchorAt, grant)
+	updated, err := q.ApplyTimeRecovery(ctx, sqlc.ApplyTimeRecoveryParams{
+		ID:       locked.ID,
+		Amount:   int16(grant),
+		AnchorAt: &anchor,
+	})
+	if err != nil {
+		return locked, 0, fmt.Errorf("apply time recovery: %w", err)
+	}
+	return updated, grant, nil
 }
 
 // LikeResult は Like を1つ消費した後にクライアントが必要とする情報。
 type LikeResult struct {
-	RemainingLikes int
-	Matched        bool
-	MatchID        *uuid.UUID
-	Target         sqlc.Persona
+	Likes   LikeState
+	Matched bool
+	MatchID *uuid.UUID
+	Target  sqlc.Persona
 	// LikesGained は Match 報酬で実際に増えた Like の数。所持上限に達していれば
 	// Match が成立しても 0 になり、画面は回復の表示を省く。
 	LikesGained int
@@ -48,6 +151,9 @@ type LikeResult struct {
 //     Match が成立しないという事態が起きない
 //   - ロックは常に id の小さい方から取るため、上記2つのケースが互いに
 //     デッドロックすることがない
+//
+// 時間回復も同じロックの内側で評価する。よって残数0で開いたままの画面から
+// でも、3時間が経っていればその場で1つ送れる。
 func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UUID, gameDate time.Time) (LikeResult, error) {
 	if actor.ID == targetID {
 		return LikeResult{}, apperr.SelfActionNotAllowed
@@ -68,6 +174,11 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		return LikeResult{}, err
 	}
 
+	locked, recovered, err := s.applyTimeRecovery(ctx, q, locked)
+	if err != nil {
+		return LikeResult{}, err
+	}
+
 	target, err := q.GetActivePersona(ctx, sqlc.GetActivePersonaParams{
 		PersonaID: targetID,
 		GameDate:  gameDate,
@@ -79,8 +190,8 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		return LikeResult{}, fmt.Errorf("load target persona: %w", err)
 	}
 
-	// 重複判定を予算判定より先に行う。すでに計上済みの Like をリトライしたとき、
-	// もう1つ消費するのではなく AlreadyLiked を返すため。
+	// 重複判定を残数の判定より先に行う。すでに計上済みの Like をリトライした
+	// とき、もう1つ消費するのではなく AlreadyLiked を返すため。
 	duplicate, err := q.LikeExists(ctx, sqlc.LikeExistsParams{
 		FromPersonaID: actor.ID,
 		ToPersonaID:   target.ID,
@@ -92,13 +203,10 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		return LikeResult{}, apperr.AlreadyLiked
 	}
 
-	sent, err := q.CountLikesSent(ctx, actor.ID)
-	if err != nil {
-		return LikeResult{}, fmt.Errorf("count sent likes: %w", err)
-	}
-	// 予算そのものではなく残数で判定する。回復ぶんを足した残数で見ないと、
-	// 報酬で得た Like を使えないままその日が終わってしまう。
-	if RemainingLikes(sent, locked.BonusLikes) <= 0 {
+	// 残高そのものが答えなので、送信済み Like を数え直す必要はない。
+	// 回復ぶんもここに入っているため、報酬で得た Like を使えないまま
+	// その日が終わることはない。
+	if locked.LikeBalance <= 0 {
 		return LikeResult{}, apperr.LikeLimitExceeded
 	}
 
@@ -117,12 +225,15 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		return LikeResult{}, fmt.Errorf("increment exposure: %w", err)
 	}
 
-	// この Like を消費した後の残数。Match 報酬が出ればこの後で上積みする。
-	actorSent := sent + 1
-	result := LikeResult{
-		RemainingLikes: RemainingLikes(actorSent, locked.BonusLikes),
-		Target:         target,
+	// 残高を1つ減らす。この Like がその日の1つ目なら、ここで時間回復の
+	// 起点が入ってタイマーが動き出す。
+	now := s.clock.Now()
+	actorAfter, err := q.ConsumeLike(ctx, sqlc.ConsumeLikeParams{ID: actor.ID, Now: &now})
+	if err != nil {
+		return LikeResult{}, fmt.Errorf("consume like: %w", err)
 	}
+
+	result := LikeResult{Target: target}
 
 	mutual, err := q.LikeExists(ctx, sqlc.LikeExistsParams{
 		FromPersonaID: target.ID,
@@ -158,21 +269,25 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		result.MatchID = &matchID
 
 		if !existed {
-			gained, err := grantMatchReward(ctx, q, locked, actorSent)
+			rewarded, gained, err := grantMatchReward(ctx, q, actorAfter)
 			if err != nil {
 				return LikeResult{}, err
 			}
+			actorAfter = rewarded
 			result.LikesGained = gained
-			result.RemainingLikes = RemainingLikes(actorSent, locked.BonusLikes+int16(gained))
 
 			// Match は二人の出来事なので、相手にも同じ報酬を払う。先に Like して
 			// 待っていた側が何も受け取れないのはおかしい。ペアの両行を
-			// ロックしているので、相手の残数を読んで書き足しても競合しない。
-			if err := grantCounterpartMatchReward(ctx, q, target); err != nil {
+			// ロックしているので、相手の行を読んで書き足しても競合しない。
+			// 相手側の時間回復には触らない。相手が次に画面を開いたときに
+			// 同じ lazy 評価が走る。
+			if _, _, err := grantMatchReward(ctx, q, target); err != nil {
 				return LikeResult{}, err
 			}
 		}
 	}
+
+	result.Likes = s.likeState(actorAfter, recovered)
 
 	if err := tx.Commit(ctx); err != nil {
 		return LikeResult{}, fmt.Errorf("commit like: %w", err)
@@ -277,8 +392,8 @@ func lockPair(ctx context.Context, q *sqlc.Queries, actorID, targetID uuid.UUID)
 
 // ProfileResult はプロフィール更新後にクライアントが必要とする情報。
 type ProfileResult struct {
-	Persona        sqlc.Persona
-	RemainingLikes int
+	Persona sqlc.Persona
+	Likes   LikeState
 	// LikesGained はプロフィール完成報酬で実際に増えた Like の数。
 	// 報酬の条件を満たさない場合も所持上限に達している場合も 0 になる。
 	LikesGained int
@@ -307,6 +422,13 @@ func (s *Service) UpdateProfile(ctx context.Context, personaID uuid.UUID, name, 
 		return ProfileResult{}, fmt.Errorf("lock persona: %w", err)
 	}
 
+	// 時間回復を先に反映する。この後の報酬は所持上限で切り詰めるため、
+	// 回復ぶんを入れる前に判定すると上限の当たり方がずれる。
+	locked, recovered, err := s.applyTimeRecovery(ctx, q, locked)
+	if err != nil {
+		return ProfileResult{}, err
+	}
+
 	updated, err := q.UpdatePersonaProfile(ctx, sqlc.UpdatePersonaProfileParams{
 		ID:    personaID,
 		Name:  name,
@@ -317,16 +439,10 @@ func (s *Service) UpdateProfile(ctx context.Context, personaID uuid.UUID, name, 
 		return ProfileResult{}, fmt.Errorf("update profile: %w", err)
 	}
 
-	sent, err := q.CountLikesSent(ctx, personaID)
-	if err != nil {
-		return ProfileResult{}, fmt.Errorf("count sent likes: %w", err)
-	}
-
 	result := ProfileResult{Persona: updated}
 
 	if !locked.ProfileRewardClaimed && ProfileComplete(updated.Name, updated.Hobby, updated.Bio) {
-		current := RemainingLikes(sent, updated.BonusLikes)
-		gained := GrantableLikes(current, ProfileCompletionReward)
+		gained := GrantableLikes(int(updated.LikeBalance), ProfileCompletionReward)
 
 		rewarded, err := q.ClaimProfileReward(ctx, sqlc.ClaimProfileRewardParams{
 			ID:     personaID,
@@ -339,7 +455,7 @@ func (s *Service) UpdateProfile(ctx context.Context, personaID uuid.UUID, name, 
 		result.LikesGained = gained
 	}
 
-	result.RemainingLikes = RemainingLikes(sent, result.Persona.BonusLikes)
+	result.Likes = s.likeState(result.Persona, recovered)
 
 	if err := tx.Commit(ctx); err != nil {
 		return ProfileResult{}, fmt.Errorf("commit profile update: %w", err)
@@ -347,37 +463,25 @@ func (s *Service) UpdateProfile(ctx context.Context, personaID uuid.UUID, name, 
 	return result, nil
 }
 
-// grantMatchReward は Match 1件ぶんの回復を1人に払い、実際に増えた数を返す。
+// grantMatchReward は Match 1件ぶんの回復を1人に払い、更新後の行と実際に
+// 増えた数を返す。
 //
 // 呼び出し側はこの Persona の行ロックを保持していること。回数の上限に
 // 達していれば何もしない。上限に達していない限り、回復量が 0 でも回数は
 // 消費する。所持上限で溢れた分は仕様どおり失われる。
-func grantMatchReward(ctx context.Context, q *sqlc.Queries, p sqlc.Persona, sent int64) (int, error) {
+func grantMatchReward(ctx context.Context, q *sqlc.Queries, p sqlc.Persona) (sqlc.Persona, int, error) {
 	if p.MatchRewardCount >= MaxMatchRewards {
-		return 0, nil
+		return p, 0, nil
 	}
 
-	gained := GrantableLikes(RemainingLikes(sent, p.BonusLikes), MatchReward)
+	gained := GrantableLikes(int(p.LikeBalance), MatchReward)
 
-	if _, err := q.ClaimMatchReward(ctx, sqlc.ClaimMatchRewardParams{
+	rewarded, err := q.ClaimMatchReward(ctx, sqlc.ClaimMatchRewardParams{
 		ID:     p.ID,
 		Amount: int16(gained),
-	}); err != nil {
-		return 0, fmt.Errorf("claim match reward: %w", err)
-	}
-	return gained, nil
-}
-
-// grantCounterpartMatchReward は Match の相手側に報酬を払う。相手は今この
-// リクエストの中にいないので、残数を数え直してから grantMatchReward に渡す。
-// 増えた数は返さない。相手の画面はこの後ホームを読んだときに新しい残数を得る。
-func grantCounterpartMatchReward(ctx context.Context, q *sqlc.Queries, counterpart sqlc.Persona) error {
-	sent, err := q.CountLikesSent(ctx, counterpart.ID)
+	})
 	if err != nil {
-		return fmt.Errorf("count counterpart sent likes: %w", err)
+		return p, 0, fmt.Errorf("claim match reward: %w", err)
 	}
-	if _, err := grantMatchReward(ctx, q, counterpart, sent); err != nil {
-		return err
-	}
-	return nil
+	return rewarded, gained, nil
 }
