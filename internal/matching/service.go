@@ -96,7 +96,9 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 	if err != nil {
 		return LikeResult{}, fmt.Errorf("count sent likes: %w", err)
 	}
-	if sent >= DailyLikeBudget {
+	// 予算そのものではなく残数で判定する。回復ぶんを足した残数で見ないと、
+	// 報酬で得た Like を使えないままその日が終わってしまう。
+	if RemainingLikes(sent, locked.BonusLikes) <= 0 {
 		return LikeResult{}, apperr.LikeLimitExceeded
 	}
 
