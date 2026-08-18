@@ -78,3 +78,43 @@ func TestStaticHandlerRejectsNonReadMethods(t *testing.T) {
 		t.Fatalf("status = %d, want 405", rec.Code)
 	}
 }
+
+func TestIndexIsRevalidatedSoDeploysReachReturningVisitors(t *testing.T) {
+	// index.html はハッシュ付きアセットの入口。ここが古いまま使い回されると、
+	// デプロイ済みの新しいバンドルに永久に切り替わらない。
+	h := staticHandler(distDir(t))
+
+	for _, path := range []string{"/", "/matches"} {
+		rec := httptest.NewRecorder()
+		h(rec, httptest.NewRequest(http.MethodGet, path, nil))
+
+		got := rec.Header().Get("Cache-Control")
+		if !strings.Contains(got, "no-cache") {
+			t.Errorf("%s: Cache-Control = %q, want it to force revalidation", path, got)
+		}
+	}
+}
+
+func TestHashedAssetsAreCachedHard(t *testing.T) {
+	// ファイル名にハッシュが入っているので、中身が変わればパスも変わる。
+	// 長期キャッシュしても古いものを掴み続けることはない。
+	rec := httptest.NewRecorder()
+	staticHandler(distDir(t))(rec, httptest.NewRequest(http.MethodGet, "/assets/app.js", nil))
+
+	got := rec.Header().Get("Cache-Control")
+	if !strings.Contains(got, "immutable") {
+		t.Errorf("Cache-Control = %q, want immutable for a hashed asset", got)
+	}
+}
+
+func TestMissingAssetIs404RatherThanIndexHTML(t *testing.T) {
+	// 古い index.html を握ったままのブラウザは、消えたバンドルを取りに来る。
+	// ここで index.html を 200 で返すと、HTML が JS として実行されて
+	// 画面が黙って壊れる。404 なら読み込み失敗として扱われる。
+	rec := httptest.NewRecorder()
+	staticHandler(distDir(t))(rec, httptest.NewRequest(http.MethodGet, "/assets/index-OLDHASH.js", nil))
+
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404 (body: %s)", rec.Code, rec.Body.String())
+	}
+}
