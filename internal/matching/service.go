@@ -14,8 +14,9 @@ import (
 	"kusamachi/internal/db/sqlc"
 )
 
-// Service は Like と Pass のトランザクションを実行する。どちらも、市場のルールを
-// 強制するのがアプリケーションではなくデータベースになるように書かれている。
+// Service は Like・Pass・プロフィール更新のトランザクションを実行する。
+// いずれも、市場のルールを強制するのがアプリケーションではなくデータベースに
+// なるように書かれている。
 type Service struct {
 	pool *pgxpool.Pool
 	q    *sqlc.Queries
@@ -32,6 +33,9 @@ type LikeResult struct {
 	Matched        bool
 	MatchID        *uuid.UUID
 	Target         sqlc.Persona
+	// LikesGained は Match 報酬で実際に増えた Like の数。所持上限に達していれば
+	// Match が成立しても 0 になり、画面は回復の表示を省く。
+	LikesGained int
 }
 
 // Like は対象に Like を1つ消費し、相互 Like なら Match を作る。
@@ -57,7 +61,10 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 
 	q := s.q.WithTx(tx)
 
-	if err := lockPair(ctx, q, actor.ID, targetID); err != nil {
+	// 実行者の行はロックの内側で読み直す。呼び出し側が渡してきた actor は
+	// トランザクションの外で読んだもので、回復の状態が古い可能性がある。
+	locked, err := lockPair(ctx, q, actor.ID, targetID)
+	if err != nil {
 		return LikeResult{}, err
 	}
 
@@ -108,8 +115,10 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		return LikeResult{}, fmt.Errorf("increment exposure: %w", err)
 	}
 
+	// この Like を消費した後の残数。Match 報酬が出ればこの後で上積みする。
+	actorSent := sent + 1
 	result := LikeResult{
-		RemainingLikes: RemainingLikes(sent + 1),
+		RemainingLikes: RemainingLikes(actorSent, locked.BonusLikes),
 		Target:         target,
 	}
 
@@ -122,6 +131,19 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 	}
 	if mutual {
 		low, high := NormalizePair(actor.ID, target.ID)
+
+		// 報酬は「新しく成立した Match 1件」に対して払う。実行者の Like は
+		// このトランザクションで新規に入ったものなので、ここに来た時点で Match は
+		// 必ず新しい。それでも判定を明示しておくのは、同じ Match への二重付与を
+		// 上の推論ではなくコードで否定しておきたいため。
+		existed, err := q.MatchExists(ctx, sqlc.MatchExistsParams{
+			PersonaLowID:  low,
+			PersonaHighID: high,
+		})
+		if err != nil {
+			return LikeResult{}, fmt.Errorf("check existing match: %w", err)
+		}
+
 		matchID, err := q.InsertMatch(ctx, sqlc.InsertMatchParams{
 			ID:            uuid.New(),
 			PersonaLowID:  low,
@@ -132,6 +154,22 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		}
 		result.Matched = true
 		result.MatchID = &matchID
+
+		if !existed {
+			gained, err := grantMatchReward(ctx, q, locked, actorSent)
+			if err != nil {
+				return LikeResult{}, err
+			}
+			result.LikesGained = gained
+			result.RemainingLikes = RemainingLikes(actorSent, locked.BonusLikes+int16(gained))
+
+			// Match は二人の出来事なので、相手にも同じ報酬を払う。先に Like して
+			// 待っていた側が何も受け取れないのはおかしい。ペアの両行を
+			// ロックしているので、相手の残数を読んで書き足しても競合しない。
+			if err := grantCounterpartMatchReward(ctx, q, target); err != nil {
+				return LikeResult{}, err
+			}
+		}
 	}
 
 	if err := tx.Commit(ctx); err != nil {
@@ -160,7 +198,7 @@ func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 
 	q := s.q.WithTx(tx)
 
-	if err := lockPair(ctx, q, actor.ID, targetID); err != nil {
+	if _, err := lockPair(ctx, q, actor.ID, targetID); err != nil {
 		return PassResult{}, err
 	}
 
@@ -214,17 +252,130 @@ func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 	}, nil
 }
 
-// lockPair は2つの Persona 行ロックを正規化した順で取得する。行が無い場合は
-// 対象がそもそも存在しないということ。
-func lockPair(ctx context.Context, q *sqlc.Queries, a, b uuid.UUID) error {
-	low, high := NormalizePair(a, b)
+// lockPair は2つの Persona 行ロックを正規化した順で取得し、実行者の行を
+// ロック後の状態で返す。行が無い場合は対象がそもそも存在しないということ。
+func lockPair(ctx context.Context, q *sqlc.Queries, actorID, targetID uuid.UUID) (sqlc.Persona, error) {
+	low, high := NormalizePair(actorID, targetID)
+
+	var actor sqlc.Persona
 	for _, id := range [2]uuid.UUID{low, high} {
-		if _, err := q.LockPersona(ctx, id); err != nil {
+		p, err := q.LockPersona(ctx, id)
+		if err != nil {
 			if errors.Is(err, pgx.ErrNoRows) {
-				return apperr.TargetPersonaUnavailable
+				return sqlc.Persona{}, apperr.TargetPersonaUnavailable
 			}
-			return fmt.Errorf("lock persona: %w", err)
+			return sqlc.Persona{}, fmt.Errorf("lock persona: %w", err)
 		}
+		if id == actorID {
+			actor = p
+		}
+	}
+	return actor, nil
+}
+
+// ProfileResult はプロフィール更新後にクライアントが必要とする情報。
+type ProfileResult struct {
+	Persona        sqlc.Persona
+	RemainingLikes int
+	// LikesGained はプロフィール完成報酬で実際に増えた Like の数。
+	// 報酬の条件を満たさない場合も所持上限に達している場合も 0 になる。
+	LikesGained int
+}
+
+// UpdateProfile は B属性を保存し、プロフィール完成報酬をその場で判定する。
+//
+// 更新・完成条件の判定・付与・受け取り済みフラグの更新を、ひとつの
+// トランザクションで扱う。先に persona の行ロックを取るので、同じ PATCH が
+// 二重に届いても後から入った方はフラグが立った後の行を読み、報酬は一度しか出ない。
+// 一度受け取った後に項目を消して入れ直しても、フラグは下がらないので同じ。
+func (s *Service) UpdateProfile(ctx context.Context, personaID uuid.UUID, name, hobby, bio *string) (ProfileResult, error) {
+	tx, err := s.pool.Begin(ctx)
+	if err != nil {
+		return ProfileResult{}, fmt.Errorf("begin profile transaction: %w", err)
+	}
+	defer tx.Rollback(ctx) //nolint:errcheck // コミット済みなら何もしない
+
+	q := s.q.WithTx(tx)
+
+	locked, err := q.LockPersona(ctx, personaID)
+	if errors.Is(err, pgx.ErrNoRows) {
+		return ProfileResult{}, apperr.PersonaNotGenerated
+	}
+	if err != nil {
+		return ProfileResult{}, fmt.Errorf("lock persona: %w", err)
+	}
+
+	updated, err := q.UpdatePersonaProfile(ctx, sqlc.UpdatePersonaProfileParams{
+		ID:    personaID,
+		Name:  name,
+		Hobby: hobby,
+		Bio:   bio,
+	})
+	if err != nil {
+		return ProfileResult{}, fmt.Errorf("update profile: %w", err)
+	}
+
+	sent, err := q.CountLikesSent(ctx, personaID)
+	if err != nil {
+		return ProfileResult{}, fmt.Errorf("count sent likes: %w", err)
+	}
+
+	result := ProfileResult{Persona: updated}
+
+	if !locked.ProfileRewardClaimed && ProfileComplete(updated.Name, updated.Hobby, updated.Bio) {
+		current := RemainingLikes(sent, updated.BonusLikes)
+		gained := GrantableLikes(current, ProfileCompletionReward)
+
+		rewarded, err := q.ClaimProfileReward(ctx, sqlc.ClaimProfileRewardParams{
+			ID:     personaID,
+			Amount: int16(gained),
+		})
+		if err != nil {
+			return ProfileResult{}, fmt.Errorf("claim profile reward: %w", err)
+		}
+		result.Persona = rewarded
+		result.LikesGained = gained
+	}
+
+	result.RemainingLikes = RemainingLikes(sent, result.Persona.BonusLikes)
+
+	if err := tx.Commit(ctx); err != nil {
+		return ProfileResult{}, fmt.Errorf("commit profile update: %w", err)
+	}
+	return result, nil
+}
+
+// grantMatchReward は Match 1件ぶんの回復を1人に払い、実際に増えた数を返す。
+//
+// 呼び出し側はこの Persona の行ロックを保持していること。回数の上限に
+// 達していれば何もしない。上限に達していない限り、回復量が 0 でも回数は
+// 消費する。所持上限で溢れた分は仕様どおり失われる。
+func grantMatchReward(ctx context.Context, q *sqlc.Queries, p sqlc.Persona, sent int64) (int, error) {
+	if p.MatchRewardCount >= MaxMatchRewards {
+		return 0, nil
+	}
+
+	gained := GrantableLikes(RemainingLikes(sent, p.BonusLikes), MatchReward)
+
+	if _, err := q.ClaimMatchReward(ctx, sqlc.ClaimMatchRewardParams{
+		ID:     p.ID,
+		Amount: int16(gained),
+	}); err != nil {
+		return 0, fmt.Errorf("claim match reward: %w", err)
+	}
+	return gained, nil
+}
+
+// grantCounterpartMatchReward は Match の相手側に報酬を払う。相手は今この
+// リクエストの中にいないので、残数を数え直してから grantMatchReward に渡す。
+// 増えた数は返さない。相手の画面はこの後ホームを読んだときに新しい残数を得る。
+func grantCounterpartMatchReward(ctx context.Context, q *sqlc.Queries, counterpart sqlc.Persona) error {
+	sent, err := q.CountLikesSent(ctx, counterpart.ID)
+	if err != nil {
+		return fmt.Errorf("count counterpart sent likes: %w", err)
+	}
+	if _, err := grantMatchReward(ctx, q, counterpart, sent); err != nil {
+		return err
 	}
 	return nil
 }

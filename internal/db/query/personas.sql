@@ -21,10 +21,13 @@ JOIN participants pa ON pa.id = p.participant_id
 WHERE p.id = sqlc.arg('persona_id') AND pa.game_date = sqlc.arg('game_date');
 
 -- name: LockPersona :one
--- Like / Pass トランザクションを直列化する。呼び出し側は必ずペアを正規化した
--- (low, high) の順でロックする。これにより Like 予算の正しさと相互Like検出の
--- 確実性を同時に満たし、かつデッドロックが起きない。
-SELECT id FROM personas WHERE id = $1 FOR UPDATE;
+-- Like / Pass / プロフィール更新のトランザクションを直列化する。Like と Pass は
+-- 必ずペアを正規化した (low, high) の順でロックする。これにより Like 予算の
+-- 正しさと相互Like検出の確実性を同時に満たし、かつデッドロックが起きない。
+--
+-- 行全体を返すのは、報酬の受け取り状態をロックの内側で読み直すため。
+-- トランザクションの外で読んだ persona は、並行して回復が入っていると古い。
+SELECT * FROM personas WHERE id = $1 FOR UPDATE;
 
 -- name: IncrementExposure :exec
 -- exposure は「実際に評価されたプロフィール」を数える。よって Like か Pass が

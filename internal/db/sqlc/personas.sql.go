@@ -323,17 +323,38 @@ func (q *Queries) InsertPersona(ctx context.Context, arg InsertPersonaParams) (P
 }
 
 const lockPersona = `-- name: LockPersona :one
-SELECT id FROM personas WHERE id = $1 FOR UPDATE
+SELECT id, participant_id, age, gender, height_cm, education, occupation, annual_income, name, hobby, bio, exposure_count, created_at, photo_updated_at, bonus_likes, profile_reward_claimed, match_reward_count FROM personas WHERE id = $1 FOR UPDATE
 `
 
-// Like / Pass トランザクションを直列化する。呼び出し側は必ずペアを正規化した
-// (low, high) の順でロックする。これにより Like 予算の正しさと相互Like検出の
-// 確実性を同時に満たし、かつデッドロックが起きない。
-func (q *Queries) LockPersona(ctx context.Context, id uuid.UUID) (uuid.UUID, error) {
+// Like / Pass / プロフィール更新のトランザクションを直列化する。Like と Pass は
+// 必ずペアを正規化した (low, high) の順でロックする。これにより Like 予算の
+// 正しさと相互Like検出の確実性を同時に満たし、かつデッドロックが起きない。
+//
+// 行全体を返すのは、報酬の受け取り状態をロックの内側で読み直すため。
+// トランザクションの外で読んだ persona は、並行して回復が入っていると古い。
+func (q *Queries) LockPersona(ctx context.Context, id uuid.UUID) (Persona, error) {
 	row := q.db.QueryRow(ctx, lockPersona, id)
-	var id_2 uuid.UUID
-	err := row.Scan(&id_2)
-	return id_2, err
+	var i Persona
+	err := row.Scan(
+		&i.ID,
+		&i.ParticipantID,
+		&i.Age,
+		&i.Gender,
+		&i.HeightCm,
+		&i.Education,
+		&i.Occupation,
+		&i.AnnualIncome,
+		&i.Name,
+		&i.Hobby,
+		&i.Bio,
+		&i.ExposureCount,
+		&i.CreatedAt,
+		&i.PhotoUpdatedAt,
+		&i.BonusLikes,
+		&i.ProfileRewardClaimed,
+		&i.MatchRewardCount,
+	)
+	return i, err
 }
 
 const setPersonaPhoto = `-- name: SetPersonaPhoto :one

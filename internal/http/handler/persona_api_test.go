@@ -186,20 +186,20 @@ func TestProfileUpdate(t *testing.T) {
 	})
 	res.RequireStatus(t, http.StatusOK)
 
-	var card apptest.PersonaCard
-	res.Decode(t, &card)
-	if card.Name == nil || *card.Name != "さとし" {
-		t.Fatalf("name = %v, want trimmed さとし", card.Name)
+	var saved apptest.ProfileUpdateResponse
+	res.Decode(t, &saved)
+	if saved.Persona.Name == nil || *saved.Persona.Name != "さとし" {
+		t.Fatalf("name = %v, want trimmed さとし", saved.Persona.Name)
 	}
 
 	// 空白だけの値はフィールドをクリアし、カードから項目ごと消えるようにする。
 	res = c.Do(t, http.MethodPatch, "/api/persona/profile", map[string]any{"name": "   "})
 	res.RequireStatus(t, http.StatusOK)
 
-	var cleared apptest.PersonaCard
+	var cleared apptest.ProfileUpdateResponse
 	res.Decode(t, &cleared)
-	if cleared.Name != nil || cleared.Hobby != nil || cleared.Bio != nil {
-		t.Fatalf("expected all B fields cleared, got %+v", cleared)
+	if cleared.Persona.Name != nil || cleared.Persona.Hobby != nil || cleared.Persona.Bio != nil {
+		t.Fatalf("expected all B fields cleared, got %+v", cleared.Persona)
 	}
 
 	if !strings.Contains(string(res.Body), `"age"`) {
@@ -253,10 +253,10 @@ func TestHTMLInProfileIsStoredAsText(t *testing.T) {
 	res := c.Do(t, http.MethodPatch, "/api/persona/profile", map[string]any{"bio": payload})
 	res.RequireStatus(t, http.StatusOK)
 
-	var card apptest.PersonaCard
-	res.Decode(t, &card)
-	if card.Bio == nil || *card.Bio != payload {
-		t.Fatalf("bio = %v, want the raw text preserved", card.Bio)
+	var saved apptest.ProfileUpdateResponse
+	res.Decode(t, &saved)
+	if saved.Persona.Bio == nil || *saved.Persona.Bio != payload {
+		t.Fatalf("bio = %v, want the raw text preserved", saved.Persona.Bio)
 	}
 	// encoding/json が < と > をエスケープするため、ペイロードがクライアント側の
 	// script コンテキストを抜け出すことはない。

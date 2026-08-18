@@ -65,7 +65,7 @@ func (h *Handler) Home(w http.ResponseWriter, r *http.Request) {
 	card := newPersonaCard(state.Persona)
 	resp.PersonaGenerated = true
 	resp.Persona = &card
-	resp.RemainingLikes = matching.RemainingLikes(state.LikesSent)
+	resp.RemainingLikes = matching.RemainingLikes(state.LikesSent, state.Persona.BonusLikes)
 	resp.ReceivedLikeCount = state.LikesReceived
 	resp.MatchCount = state.MatchCount
 	resp.HasUnseenLikes = state.HasUnseenLikes

@@ -57,10 +57,26 @@ func (h *Handler) MyPersona(w http.ResponseWriter, r *http.Request) {
 	response.JSON(w, http.StatusOK, newPersonaCard(p))
 }
 
+// profileUpdateResponse はプロフィール保存の結果。
+//
+// カードを直接返さず封筒に入れるのは、プロフィール完成報酬で Like が回復した
+// ことを同じ応答で伝えるため。画面はこれ1つで、カードの再描画と残数の更新と
+// 回復の表示をまとめて行える。
+type profileUpdateResponse struct {
+	Persona        personaCard `json:"persona"`
+	RemainingLikes int         `json:"remaining_likes"`
+	// LikesGained は今回の保存で実際に増えた Like の数。報酬の条件を
+	// 満たさないときも、所持上限で溢れたときも 0 になる。
+	LikesGained int `json:"likes_gained"`
+}
+
 // UpdateProfile は PATCH /api/persona/profile を実装する。
 //
 // 受け付けるのは B属性のみ。システム生成の属性を含むペイロードは黙って
 // 無視するのではなく、はっきり拒否する。
+//
+// 保存とプロフィール完成報酬の判定はサービス側の同一トランザクションで
+// 行う。したがって、同じ PATCH を何度送っても報酬は1日1回で止まる。
 func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	s := middleware.SessionFrom(ctx)
@@ -83,16 +99,15 @@ func (h *Handler) UpdateProfile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	updated, err := h.q.UpdatePersonaProfile(ctx, sqlc.UpdatePersonaProfileParams{
-		ID:    p.ID,
-		Name:  profile.Name,
-		Hobby: profile.Hobby,
-		Bio:   profile.Bio,
-	})
+	result, err := h.matching.UpdateProfile(ctx, p.ID, profile.Name, profile.Hobby, profile.Bio)
 	if err != nil {
 		response.Error(w, err)
 		return
 	}
 
-	response.JSON(w, http.StatusOK, newPersonaCard(updated))
+	response.JSON(w, http.StatusOK, profileUpdateResponse{
+		Persona:        newPersonaCard(result.Persona),
+		RemainingLikes: result.RemainingLikes,
+		LikesGained:    result.LikesGained,
+	})
 }
