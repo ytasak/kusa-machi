@@ -2,19 +2,16 @@
 -- Discover 画面の候補選択。除外条件が散らばって食い違わないよう、ルールは
 -- すべてここに集約している:
 --   自分以外 / 当日のゲーム日 / Like済みでない / Match済みでない /
---   pass_count < 3 / フロントのクールダウン一覧に含まれない。
+--   フロントのクールダウン一覧に含まれない。
+-- Pass は候補から外さない。何度 Pass した相手でもまた出てくる。
 -- 優先度は exposure_count が少ない順、同数ならランダム。
 -- バッチを返すだけでは exposure_count を絶対に変えない。
 SELECT p.*
 FROM personas p
 JOIN participants pa ON pa.id = p.participant_id
-LEFT JOIN passes ps
-       ON ps.from_persona_id = sqlc.arg('self_id')
-      AND ps.to_persona_id = p.id
 WHERE pa.game_date = sqlc.arg('game_date')
   AND p.id <> sqlc.arg('self_id')
   AND p.id <> ALL (sqlc.arg('exclude_ids')::uuid[])
-  AND COALESCE(ps.pass_count, 0) < 3
   AND NOT EXISTS (
       SELECT 1 FROM likes l
       WHERE l.from_persona_id = sqlc.arg('self_id')

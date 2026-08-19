@@ -8,7 +8,6 @@ const MESSAGES = {
   LikeLimitExceeded: '今日のLikeを使い切りました。',
   AlreadyLiked: 'この人にはすでにLikeを送っています。',
   TargetPersonaUnavailable: 'この人は今日の市場にいません。',
-  PassLimitReached: 'この人は今日はもう表示されません。',
   SelfActionNotAllowed: '自分には操作できません。',
   DayExpired: '今日の人生は終了しました。',
   InvalidProfileInput: '改行とURLは登録できません。文字数もご確認ください。',

@@ -33,9 +33,6 @@ const (
 	MaxMatchRewards = 2
 )
 
-// MaxPassCount は、相手がその日の表示対象から外れる Pass 回数。
-const MaxPassCount = 3
-
 // NormalizePair は Persona のペアを並べ替える。どちらが先に Like しても
 // Match がちょうど1件だけ保存されるようにするため。
 func NormalizePair(a, b uuid.UUID) (low, high uuid.UUID) {

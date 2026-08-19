@@ -16,30 +16,26 @@ const discoverCandidates = `-- name: DiscoverCandidates :many
 SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.like_recovery_anchor_at
 FROM personas p
 JOIN participants pa ON pa.id = p.participant_id
-LEFT JOIN passes ps
-       ON ps.from_persona_id = $1
-      AND ps.to_persona_id = p.id
-WHERE pa.game_date = $2
-  AND p.id <> $1
+WHERE pa.game_date = $1
+  AND p.id <> $2
   AND p.id <> ALL ($3::uuid[])
-  AND COALESCE(ps.pass_count, 0) < 3
   AND NOT EXISTS (
       SELECT 1 FROM likes l
-      WHERE l.from_persona_id = $1
+      WHERE l.from_persona_id = $2
         AND l.to_persona_id = p.id
   )
   AND NOT EXISTS (
       SELECT 1 FROM matches m
-      WHERE (m.persona_low_id = $1 AND m.persona_high_id = p.id)
-         OR (m.persona_low_id = p.id AND m.persona_high_id = $1)
+      WHERE (m.persona_low_id = $2 AND m.persona_high_id = p.id)
+         OR (m.persona_low_id = p.id AND m.persona_high_id = $2)
   )
 ORDER BY p.exposure_count ASC, random()
 LIMIT $4
 `
 
 type DiscoverCandidatesParams struct {
-	SelfID     uuid.UUID
 	GameDate   time.Time
+	SelfID     uuid.UUID
 	ExcludeIds []uuid.UUID
 	LimitCount int32
 }
@@ -48,14 +44,15 @@ type DiscoverCandidatesParams struct {
 // すべてここに集約している:
 //
 //	自分以外 / 当日のゲーム日 / Like済みでない / Match済みでない /
-//	pass_count < 3 / フロントのクールダウン一覧に含まれない。
+//	フロントのクールダウン一覧に含まれない。
 //
+// Pass は候補から外さない。何度 Pass した相手でもまた出てくる。
 // 優先度は exposure_count が少ない順、同数ならランダム。
 // バッチを返すだけでは exposure_count を絶対に変えない。
 func (q *Queries) DiscoverCandidates(ctx context.Context, arg DiscoverCandidatesParams) ([]Persona, error) {
 	rows, err := q.db.Query(ctx, discoverCandidates,
-		arg.SelfID,
 		arg.GameDate,
+		arg.SelfID,
 		arg.ExcludeIds,
 		arg.LimitCount,
 	)

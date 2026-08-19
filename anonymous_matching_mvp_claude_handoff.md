@@ -714,23 +714,33 @@ MVP にチャットや DM は無い。
 
 # 9. Pass のルール
 
-Pass は初回で永久除外にはならない。
+Pass は除外ではない。
 
-一度 Pass した Persona がまた表示されることがある。
+一度 Pass した Persona もあとでまた表示される。
 
 ルール:
 - Persona ペアの方向ごとに `pass_count` を保持する
-- 1回目の Pass → あとでまた出てよい
-- 2回目の Pass → あとでまた出てよい
-- 3回目の Pass → その日はもう出さない
+- 何回 Pass しても、その相手はあとでまた出てよい
+- Pass の回数で候補から外すことはしない
 - 自分への Pass は禁止
 - 相手が Like 済み / Match 済みになったら、もう Pass の操作はできない
+
+かつては3回目の Pass でその日はもう出さない仕様だったが廃止した。ユーザー数が
+少ないうちは探すに出せる相手がそもそも少なく、Pass で候補を削ると出す相手が
+枯渇するため。`pass_count` は記録として残すが、除外の判断には使わない。
 
 クールダウン:
 - Pass した直後の Persona は、次に表示・評価される5枚のあいだは再表示しない
 - MVP ではこの5枚のクールダウンをフロントエンドのセッション状態で保持してよい
 - ページを再読み込みするとクールダウンが失われるが、それは許容する
-- `pass_count = 3` はサーバ側で保持し、その日のあいだ永続する
+- 再表示を遅らせる仕組みはこのクールダウンだけで、サーバ側には無い
+
+クールダウンは「できれば守る」ルールであり、表示より優先させない:
+- 候補が5人以下の日は、クールダウンだけで全員が除外され候補が0件になりうる
+- カードが尽きるとクールダウンを進める機会も無くなるため、そのままでは
+  再読み込みするまで空の画面から戻れない
+- 候補が0件で返ってきたときはクールダウンを捨てて取り直す。すぐ同じ相手が
+  戻ってくることになるが、空の画面よりはましだと判断している
 
 ---
 
@@ -772,7 +782,7 @@ Like を使い切ったときは、Like ボタンの下に回復の案内を出�
 - Persona が存在し有効である
 - リクエスト元がまだ Like していない
 - まだ Match していない
-- `pass_count < 3`
+- Pass 済みでも候補に含める（回数によらない）
 - フロントエンドから除外 ID が渡された場合はそれを尊重する
 - 1回のレスポンス内に同じ Persona を含めない
 - 前回のバッチと重複するのは構わない
@@ -1235,9 +1245,12 @@ CREATE TABLE passes (
     UNIQUE (from_persona_id, to_persona_id),
 
     CHECK (from_persona_id <> to_persona_id),
-    CHECK (pass_count BETWEEN 1 AND 3)
+    CHECK (pass_count >= 1)
 );
 ```
+
+`pass_count` に上限は無い。候補の除外には使わず、Pass の回数をそのまま
+記録するだけの列である。
 
 ## matches
 
@@ -1372,7 +1385,6 @@ B属性はすべて:
 - `LikeLimitExceeded`
 - `AlreadyLiked`
 - `TargetPersonaUnavailable`
-- `PassLimitReached`
 - `SelfActionNotAllowed`
 - `DayExpired`
 - `InvalidProfileInput`
@@ -1385,7 +1397,6 @@ HTTP との対応:
 | PersonaNotGenerated | 404 |
 | TargetPersonaUnavailable | 404 |
 | AlreadyLiked | 409 |
-| PassLimitReached | 409 |
 | DayExpired | 409 |
 | LikeLimitExceeded | 422 |
 | SelfActionNotAllowed | 422 |
@@ -1613,15 +1624,15 @@ CSRF 必須。
 2. 自分自身なら拒否する
 3. 対象の状態が不正なら拒否する
 4. Pass を INSERT するか加算する
-5. 3 で打ち止めにする
-6. 対象の exposure_count を加算する
+5. 対象の exposure_count を加算する
+
+回数による打ち止めは無いので、Pass が回数を理由に失敗することはない。
 
 レスポンス:
 
 ```json
 {
-  "pass_count": 2,
-  "excluded_for_today": false
+  "pass_count": 2
 }
 ```
 
@@ -1989,9 +2000,8 @@ Match 報酬:
 - 前日の起点を翌日に使わない。新しいタイマーはその日の初 Like から始まる
 
 ## Pass
-- pass_count が 1 → 2 → 3 と増える
-- 3 で除外される
-- 3 を超えない
+- pass_count が 1 → 2 → 3 … と増え、上限で止まらない
+- 何度 Pass した相手も探すの候補に残る
 - 成功した操作1回につき exposure が1増える
 
 ## 日付境界

@@ -52,6 +52,14 @@ export function consumeCurrent({ cooldownId = null } = {}) {
   }
 }
 
+/** 除外 ID を付けて1バッチ取得する。 */
+function requestBatch(excludeIds) {
+  const path = excludeIds.length > 0
+    ? `/api/discover?exclude=${encodeURIComponent(excludeIds.join(','))}`
+    : '/api/discover';
+  return api.get(path);
+}
+
 /**
  * 次のバッチを取得し、まだキューに無い Persona だけを追加する。
  * これにより同じカードが二度出ることも、バッチの切れ目が見えることもない。
@@ -62,13 +70,22 @@ export async function fetchBatch() {
   discover.loading = true;
   discover.error = null;
   try {
-    const exclude = [...cooldownIds(), ...discover.queue.map((p) => p.id)];
-    const path = exclude.length > 0
-      ? `/api/discover?exclude=${encodeURIComponent(exclude.join(','))}`
-      : '/api/discover';
+    const queued = discover.queue.map((p) => p.id);
+    let res = await requestBatch([...cooldownIds(), ...queued]);
 
-    const res = await api.get(path);
-    const known = new Set(discover.queue.map((p) => p.id));
+    // その日の候補が5人以下だと、クールダウンだけで全員が除外されて0件になる。
+    // そしてカードが尽きるとクールダウンを進める機会も無くなるので、リロード
+    // するまで「いま出会える人がいません」から戻れなくなる。
+    //
+    // クールダウンは「できれば守る」ルールでしかない。候補が足りないと分かった
+    // 時点で捨てて取り直す。すぐ同じ人が戻ってくることになるが、空の画面よりは
+    // ましだと判断した。
+    if (res.personas.length === 0 && discover.cooldown.length > 0) {
+      discover.cooldown = [];
+      res = await requestBatch(queued);
+    }
+
+    const known = new Set(queued);
     const fresh = res.personas.filter((p) => !known.has(p.id));
 
     discover.queue = [...discover.queue, ...fresh];
