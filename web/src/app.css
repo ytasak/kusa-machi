@@ -19,6 +19,21 @@
      ピンク系のボタンが並んでも「探す」だけが浮くようにする。 */
   --accent-coral-gradient: linear-gradient(140deg, #ff8a63 0%, #ff4e64 100%);
 
+  /* レア度の見せ方。人生ガチャの開示演出・探す・一覧で同じ色を使う。
+     どのレア度になるかを決めるのは web/src/lib/gacha.js だけで、ここは
+     その結果をどう塗るかしか持たない。SSR の虹色は開示演出の激レアと同じもの。 */
+  --rarity-n-fg: #7c7479;
+  --rarity-n-bg: linear-gradient(135deg, #f3f0f1, #e7e2e4);
+  --rarity-r-fg: #7a4a00;
+  --rarity-r-bg: linear-gradient(135deg, #ffeab0, #ffd166);
+  --rarity-r-glow: rgb(255 209 102 / 60%);
+  --rarity-sr-fg: #0a4f66;
+  --rarity-sr-bg: linear-gradient(135deg, #cbf3ff, #66e0ff);
+  --rarity-sr-glow: rgb(102 224 255 / 60%);
+  --rarity-ssr-fg: #2a1420;
+  --rarity-ssr-bg: linear-gradient(100deg, #ffd9a0, #ff8fae 35%, #b98cff 70%, #66e0ff);
+  --rarity-ssr-glow: rgb(255 143 174 / 62%);
+
   --radius-card: 20px;
   --radius-control: 14px;
   --shadow-card: 0 2px 10px rgb(31 29 30 / 6%);

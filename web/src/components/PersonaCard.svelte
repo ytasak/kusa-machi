@@ -1,15 +1,23 @@
 <script>
   import styles from './PersonaCard.module.css';
   import Avatar from './Avatar.svelte';
+  import RarityBadge from './RarityBadge.svelte';
   import { ageAndGender, height, income } from '../lib/format.js';
+  import { personaRank } from '../lib/gacha.js';
 
   // 探す / Likeされた / 送信済みLike / Match で共通のカード。
   // variant が変えるのは情報密度だけで、属性の並びは常に仕様どおり:
   // 名前、年齢+性別、身長、職業、年収、学歴、趣味、ひとこと。
   // 未設定の項目は丸ごと省く。
-  let { persona, badge = null, variant = 'row' } = $props();
+  //
+  // rarityReveal はカードが切り替わった瞬間の強調を鳴らすかどうか。探す画面の
+  // 現在のカードだけ true にする。一覧では静止したバッジで足りる。
+  let { persona, badge = null, variant = 'row', rarityReveal = false } = $props();
 
   const isHero = $derived(variant === 'hero');
+  // レア度は A属性から決まるので、同じ Persona ならどの画面でも同じ答えになる。
+  // 判定は人生ガチャと同じ lib/gacha.js のもので、ここでは計算し直さない。
+  const rank = $derived(personaRank(persona));
 </script>
 
 <article class="{styles.card} {isHero ? styles.hero : styles.row}">
@@ -23,7 +31,14 @@
       {#if persona.name}
         <h2 class={styles.name}>{persona.name}</h2>
       {/if}
-      <p class={styles.headline}>{ageAndGender(persona)}</p>
+      <p class={styles.headline}>
+        <!-- hero では CSS でカード左上へ出す。row では年齢の頭に並べて、
+             行の高さを増やさずにプロフィールと同時に目に入るようにする。 -->
+        <span class={styles.rarity}>
+          <RarityBadge {rank} size={isHero ? 'lg' : 'sm'} reveal={rarityReveal} />
+        </span>
+        {ageAndGender(persona)}
+      </p>
     </div>
   </div>
 

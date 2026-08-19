@@ -157,3 +157,14 @@ export function rankOf(items) {
   const score = items.reduce((sum, item) => sum + item.tier, 0);
   return { ...RANKS.find((r) => score >= r.min), score };
 }
+
+/**
+ * Persona 1件の総合レア度。
+ *
+ * レア度の入口はこの関数だけにする。開示演出・探す・一覧のどこから呼んでも
+ * 同じ Persona なら同じ答えになる。A属性は生成時に確定してその日は動かないので、
+ * ここも何度呼んでも結果は変わらない。
+ */
+export function personaRank(persona) {
+  return rankOf(revealItems(persona));
+}
