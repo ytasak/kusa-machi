@@ -16,6 +16,31 @@
   // 送り出したカードが画面外へ抜けるまでの時間。CSS の flyLike / flyPass と揃える。
   const EXIT_MS = 460;
 
+  /** 光条・粒・レア度の判子まで出すレア度。ここから下は静かに出す。 */
+  const LOUD_RANKS = new Set(['SR', 'SSR']);
+
+  /**
+   * 弾ける粒。散り方は先に決めておき、カードが変わるたびに引き直さない。
+   * 中心から放射状に散らし、3粒ごとに1粒だけ遠くまで飛ばす。
+   * SR は前半10粒だけを使う（残りは CSS で隠す）。
+   *
+   * dx / dy は飛ぶ向きだけを持つ無次元の値。実際の飛距離は CSS 側の --spread が
+   * 画面幅を見て決める。こうしておけば、狭い画面でも粒がカードの外へ出ない。
+   */
+  const BURST = Array.from({ length: 14 }, (_, i) => {
+    const angle = (i / 14) * Math.PI * 2 + (i % 2 ? 0.22 : 0);
+    const reach = i % 3 === 0 ? 1 : 0.74;
+    return {
+      shape: ['✦', '★', '✧'][i % 3],
+      dx: (Math.cos(angle) * reach).toFixed(3),
+      dy: (Math.sin(angle) * reach).toFixed(3),
+      scale: i % 3 === 0 ? 1.2 : 0.85,
+      rotate: -150 + i * 24,
+      delay: (i % 4) * 26,
+      duration: 620 + (i % 3) * 90,
+    };
+  });
+
   let message = $state(null);
   /** 送り出し中のカード: { persona, kind, seq } */
   let exiting = $state(null);
@@ -23,11 +48,15 @@
   /** 直近の Match で回復した Like 数。演出の中に出す。 */
   let matchedLikesGained = $state(0);
   /**
-   * カードの演出を鳴らし直すための連番。Match 演出を閉じるたびに進む。
+   * レア度の演出を鳴らし直すための通し番号。1枚評価するたびに進む。
    *
-   * Like を送った時点で次のカードはもう出ているので、Match 演出のあいだ
-   * その裏でレア度の演出が終わってしまう。閉じたときに一度だけ鳴らし直して、
-   * 「評価 -> 次の人生 -> レア度」の並びを崩さない。
+   * Persona の id だけを鍵にすると、その日の候補が少ないときに同じ相手が
+   * 続けて出た瞬間だけ鍵が変わらず、演出が飛んでしまう。評価した回数で
+   * 数えれば、何が出ても必ず鳴る。
+   *
+   * Match 演出を閉じたときにも進める。Like を送った時点で次のカードはもう
+   * 出ているので、Match 演出のあいだにその裏で演出が終わってしまう。閉じた
+   * ところで鳴らし直して「評価 -> 次の人生 -> レア度」の並びを崩さない。
    */
   let revealSeq = $state(0);
 
@@ -38,10 +67,19 @@
   // A属性から決まるので、ここで計算し直しても同じ Persona なら常に同じ答えになる。
   const rank = $derived(card ? personaRank(card) : null);
   /**
-   * 演出の再発火キー。Persona が変わるたびに値が変わるので、同じレア度が
-   * 続いてもカードごとに演出が最初から走る。
+   * 演出の再発火キー。カードが変わるたびに値が変わるので、同じレア度でも
+   * 同じ相手でも、出るたびに演出が最初から走る。
    */
-  const revealKey = $derived(`${card?.id}-${revealSeq}`);
+  const revealKey = $derived(`${revealSeq}-${card?.id ?? ''}`);
+  const loud = $derived(LOUD_RANKS.has(rank?.label));
+
+  // 出た瞬間の手応え。SR 以上だけ一段強くして、目を離していても希少さが伝わる。
+  // revealKey を読んでいるので、鳴るタイミングは演出と同じになる。
+  $effect(() => {
+    const label = revealKey && rank?.label;
+    if (label === 'SSR') vibrate(HAPTICS.rank);
+    else if (label === 'SR') vibrate(HAPTICS.revealRare);
+  });
 
   onMount(refill);
 
@@ -69,6 +107,8 @@
    */
   function throwCard(persona, kind) {
     exiting = { persona, kind, seq: ++throwSeq };
+    // 判定したこの瞬間が、次のカードが出る瞬間でもある。演出の鍵をここで進める。
+    revealSeq += 1;
     clearTimeout(exitTimer);
     exitTimer = setTimeout(() => {
       exiting = null;
@@ -172,9 +212,27 @@
                重ねているだけなので、演出中も Like / Pass はそのまま押せる。 -->
           {#key revealKey}
             <div class={styles.cardLayer} data-rank={rank.label}>
+              <span class={styles.revealRays} aria-hidden="true"></span>
               <PersonaCard persona={card} variant="hero" rarityReveal />
               <span class={styles.revealGlow} aria-hidden="true"></span>
               <span class={styles.revealFlash} aria-hidden="true"></span>
+
+              <!-- SR 以上だけ、人生ガチャと同じ「粒が弾けてレア度が判子で押される」
+                   出し方にする。どちらも一瞬で消えるので操作の邪魔にはならない。 -->
+              {#if loud}
+                <span class={styles.burst} aria-hidden="true">
+                  {#each BURST as p, i (i)}
+                    <span
+                      class={styles.particle}
+                      style="--dx:{p.dx}; --dy:{p.dy}; --sc:{p.scale}; --rot:{p.rotate}deg;
+                             --delay:{p.delay}ms; --dur:{p.duration}ms"
+                    >
+                      {p.shape}
+                    </span>
+                  {/each}
+                </span>
+                <span class={styles.revealStamp} aria-hidden="true">{rank.label}</span>
+              {/if}
             </div>
           {/key}
         {/if}

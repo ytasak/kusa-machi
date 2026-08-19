@@ -45,11 +45,18 @@
 }
 
 /* 次のカードが出た瞬間に走るレア度の演出。
+   出し方は人生ガチャの開示演出（PersonaReveal）に揃えている。N と R は静かに、
+   SR 以上は光条・粒・レア度の判子まで出して、一目で希少だと分かるようにする。
+
    レア度で変わるのは強さと長さだけで、いちばん強い SSR でも 0.8 秒で終わる。
    どの層も重ねて描くだけで pointer-events を持たないので、演出中でも
-   Like / Pass はそのまま押せる。テンポのために待たせることは一切しない。 */
+   Like / Pass はそのまま押せる。テンポのために待たせることは一切しない。
+
+   isolation を切っておくことで、カードの後ろへ回す光条（z-index: -1）が
+   ページ背景まで落ちない。 */
 .cardLayer {
   position: relative;
+  isolation: isolate;
   flex: 1;
   display: flex;
   /* N は「ほぼ通常表示」。軽い fade だけで済ませる。 */
@@ -57,45 +64,120 @@
 }
 
 .cardLayer[data-rank='R'] {
-  animation: cardPop 320ms cubic-bezier(0.2, 0.9, 0.25, 1.3) both;
+  animation: cardPop 340ms cubic-bezier(0.2, 0.9, 0.25, 1.3) both;
 }
 
 .cardLayer[data-rank='SR'] {
-  animation: cardPop 420ms cubic-bezier(0.2, 0.9, 0.25, 1.4) both;
+  animation: cardPop 460ms cubic-bezier(0.2, 0.9, 0.25, 1.45) both;
 }
 
+/* SSR だけカードごと大きく踏み込ませる。 */
 .cardLayer[data-rank='SSR'] {
-  animation: cardPop 560ms cubic-bezier(0.2, 0.9, 0.25, 1.5) both;
+  animation: cardSlam 580ms cubic-bezier(0.2, 0.9, 0.25, 1.6) both;
 }
 
-/* レア度の光。N と R では出さない（既定で opacity: 0 のまま）。 */
+/* 演出の層。既定では何も見せず、レア度ごとに必要なものだけ動かす。 */
+.revealRays,
 .revealGlow,
-.revealFlash {
+.revealFlash,
+.burst,
+.revealStamp {
   position: absolute;
-  inset: 0;
-  z-index: 2;
-  border-radius: var(--radius-card);
   pointer-events: none;
   opacity: 0;
 }
 
-/* SR 以上はカードの周囲を短く光らせる。色は app.css のレア度トークン。 */
+/* ---- 写真の後ろから差す光条（SR 以上） ---- */
+
+/* 人生ガチャの開示演出と同じ光条。カードの外へ出しても画面幅を越えるだけで
+   見えないので、写真のまわりだけを覆って「後ろから光が差す」形にする。
+   文字が並ぶ下半分には出さないため、演出中もプロフィールは読める。 */
+.revealRays {
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 45%;
+  z-index: 1;
+  overflow: hidden;
+  border-radius: var(--radius-card) var(--radius-card) 0 0;
+}
+
+.cardLayer[data-rank='SR'] .revealRays,
+.cardLayer[data-rank='SSR'] .revealRays {
+  opacity: 1;
+}
+
+/* 光条そのもの。四方は親に刈り取られる前提で大きく取り、中心から外へ
+   薄くなるようマスクで抜く。 */
+.revealRays::after {
+  content: '';
+  position: absolute;
+  inset: -70%;
+  -webkit-mask-image: radial-gradient(closest-side, rgb(0 0 0 / 95%) 6%, transparent 44%);
+  mask-image: radial-gradient(closest-side, rgb(0 0 0 / 95%) 6%, transparent 44%);
+}
+
+.cardLayer[data-rank='SR'] .revealRays::after {
+  background: repeating-conic-gradient(from 0deg, #29c7f0 0deg 1.8deg, transparent 1.8deg 12deg);
+  animation: raysOut 460ms ease-out both;
+}
+
+/* SSR だけ虹色。開示演出の激レアと同じ並びにする。 */
+.cardLayer[data-rank='SSR'] .revealRays::after {
+  background: repeating-conic-gradient(
+    from 0deg,
+    #ffb03a 0deg 1.8deg,
+    transparent 1.8deg 8deg,
+    #ff5470 8deg 9.8deg,
+    transparent 9.8deg 16deg,
+    #9b6bff 16deg 17.8deg,
+    transparent 17.8deg 24deg,
+    #29c7f0 24deg 25.8deg,
+    transparent 25.8deg 32deg
+  );
+  animation: raysOut 800ms ease-out both;
+}
+
+/* ---- カードの周囲の発光 ---- */
+
+.revealGlow {
+  inset: 0;
+  z-index: 2;
+  border-radius: var(--radius-card);
+}
+
+/* R は金の細い輪をひと呼吸だけ。消えたあとは何も残さない。 */
+.cardLayer[data-rank='R'] .revealGlow {
+  box-shadow:
+    0 0 0 2px var(--rarity-r-glow),
+    0 0 18px 3px var(--rarity-r-glow);
+  animation: glowOut 340ms ease-out both;
+}
+
+/* SR 以上は二度脈打ってから薄く残す。カードを見ているあいだ希少さが続く。 */
 .cardLayer[data-rank='SR'] .revealGlow {
   box-shadow:
-    0 0 0 2px var(--rarity-sr-glow),
-    0 0 26px 8px var(--rarity-sr-glow);
-  animation: glowOut 450ms ease-out both;
+    0 0 0 3px var(--rarity-sr-glow),
+    0 0 34px 10px var(--rarity-sr-glow);
+  animation: glowStay 460ms ease-out both;
 }
 
 .cardLayer[data-rank='SSR'] .revealGlow {
   box-shadow:
-    0 0 0 2px rgb(255 143 174 / 85%),
-    0 0 0 5px rgb(185 140 255 / 45%),
-    0 0 32px 12px var(--rarity-ssr-glow);
-  animation: glowOut 750ms ease-out both;
+    0 0 0 3px rgb(255 143 174 / 92%),
+    0 0 0 7px rgb(185 140 255 / 55%),
+    0 0 44px 14px var(--rarity-ssr-glow);
+  animation: glowStay 800ms ease-out both;
 }
 
-/* SSR だけカードの表面を光がひと筋なでる。transform だけで動かす。 */
+/* ---- カードの表面を走る光（SSR のみ） ---- */
+
+.revealFlash {
+  inset: 0;
+  z-index: 2;
+  border-radius: var(--radius-card);
+}
+
 .cardLayer[data-rank='SSR'] .revealFlash {
   overflow: hidden;
   opacity: 1;
@@ -111,10 +193,101 @@
   background: linear-gradient(
     100deg,
     rgb(255 255 255 / 0%),
-    rgb(255 255 255 / 72%),
+    rgb(255 255 255 / 85%),
     rgb(255 255 255 / 0%)
   );
   animation: sweep 620ms cubic-bezier(0.35, 0, 0.5, 1) 60ms both;
+}
+
+/* ---- 弾ける粒（SR 以上） ---- */
+
+/* 人生ガチャと同じ、中心から放射状に散る粒。数は 14 までに抑えている。 */
+.burst {
+  top: 40%;
+  left: 50%;
+  width: 0;
+  height: 0;
+  z-index: 2;
+  opacity: 1;
+}
+
+.particle {
+  position: absolute;
+  font-size: 20px;
+  line-height: 1;
+  /* 飛距離。狭い画面では画面幅に合わせて縮め、粒がカードの外へ出ないようにする。 */
+  --spread: min(180px, 33vw);
+  animation: fly var(--dur) cubic-bezier(0.12, 0.72, 0.3, 1) var(--delay) both;
+}
+
+/* SR は水色と白で、粒も少なめ。SSR より一段早く引き上げる。 */
+.cardLayer[data-rank='SR'] .particle {
+  color: #66e0ff;
+  animation-duration: 440ms;
+}
+
+.cardLayer[data-rank='SR'] .particle:nth-child(3n) {
+  color: #fff;
+  text-shadow: 0 0 8px rgb(102 224 255 / 90%);
+}
+
+.cardLayer[data-rank='SR'] .particle:nth-child(n + 11) {
+  display: none;
+}
+
+/* SSR は虹の粒。開示演出の激レアと同じ色を使う。 */
+.cardLayer[data-rank='SSR'] .particle {
+  font-size: 23px;
+}
+
+.cardLayer[data-rank='SSR'] .particle:nth-child(4n + 1) {
+  color: #ffd166;
+}
+
+.cardLayer[data-rank='SSR'] .particle:nth-child(4n + 2) {
+  color: #ff8fae;
+}
+
+.cardLayer[data-rank='SSR'] .particle:nth-child(4n + 3) {
+  color: #b98cff;
+}
+
+.cardLayer[data-rank='SSR'] .particle:nth-child(4n) {
+  color: #66e0ff;
+}
+
+/* ---- レア度の判子（SR 以上） ---- */
+
+/* LIKE / PASS の判子と同じ作りにして、カードの上に叩きつけてから引く。
+   バッジをそのまま大きくした見た目なので、隅のバッジとの結び付きも分かる。 */
+.revealStamp {
+  top: 33%;
+  left: 50%;
+  z-index: 2;
+  padding: 2px 18px 5px;
+  border: 5px solid #fff;
+  border-radius: 16px;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: 0.06em;
+  /* letter-spacing は最後の字の後ろにも入る。その分だけ戻して中央に見せる。 */
+  text-indent: 0.06em;
+  box-shadow: 0 10px 30px rgb(31 29 30 / 28%);
+  transform: translate(-50%, -50%);
+}
+
+.cardLayer[data-rank='SR'] .revealStamp {
+  font-size: 54px;
+  color: var(--rarity-sr-fg);
+  background: var(--rarity-sr-bg);
+  animation: rarityStamp 500ms cubic-bezier(0.2, 1.5, 0.3, 1) both;
+}
+
+.cardLayer[data-rank='SSR'] .revealStamp {
+  font-size: 62px;
+  color: var(--rarity-ssr-fg);
+  background: var(--rarity-ssr-bg);
+  animation: rarityStamp 720ms cubic-bezier(0.2, 1.5, 0.3, 1) both;
 }
 
 /* 送り出したカード。次のカードの上に重ねてから飛ばす。 */
@@ -241,6 +414,17 @@
   }
 }
 
+@keyframes cardSlam {
+  from {
+    opacity: 0;
+    transform: scale(0.86) translateY(14px) rotate(-1.5deg);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0) rotate(0deg);
+  }
+}
+
 @keyframes glowOut {
   0% {
     opacity: 0;
@@ -250,6 +434,79 @@
   }
   100% {
     opacity: 0;
+  }
+}
+
+/* 二度脈打ってから薄く残る。残った光が「まだ希少なカードを見ている」印になる。 */
+@keyframes glowStay {
+  0% {
+    opacity: 0;
+  }
+  14% {
+    opacity: 1;
+  }
+  45% {
+    opacity: 0.5;
+  }
+  62% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.42;
+  }
+}
+
+@keyframes raysOut {
+  0% {
+    opacity: 0;
+    transform: scale(0.6) rotate(-10deg);
+  }
+  22% {
+    opacity: 0.75;
+  }
+  100% {
+    opacity: 0;
+    transform: scale(1.08) rotate(8deg);
+  }
+}
+
+@keyframes fly {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.2) rotate(0deg);
+  }
+  12% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0;
+    transform: translate(
+        calc(-50% + var(--dx) * var(--spread)),
+        calc(-50% + var(--dy) * var(--spread))
+      )
+      scale(var(--sc)) rotate(var(--rot));
+  }
+}
+
+@keyframes rarityStamp {
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(2.4) rotate(-8deg);
+  }
+  22% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(0.9) rotate(-8deg);
+  }
+  38% {
+    transform: translate(-50%, -50%) scale(1.05) rotate(-8deg);
+  }
+  64% {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1) rotate(-8deg);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(1.14) rotate(-8deg);
   }
 }
 
@@ -278,10 +535,13 @@
     animation-duration: 1ms;
   }
 
-  /* レア度の光は動きそのものが中身なので、まるごと省く。
+  /* レア度の光と粒は動きそのものが中身なので、まるごと省く。
      レア度はカード上のバッジで変わらず読める。 */
+  .revealRays,
   .revealGlow,
-  .revealFlash {
+  .revealFlash,
+  .burst,
+  .revealStamp {
     display: none;
   }
 }
