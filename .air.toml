@@ -1,0 +1,34 @@
+# air（ホットリロード）の設定。`make dev` から使う。
+#
+# 監視するのは Go のソースだけ。フロントエンドは Vite の HMR が受け持ち、
+# web/dist は http.FileServer がリクエストごとにディスクから読むため、
+# フロントを焼き直しても Go を再起動する必要がない。
+
+root = "."
+tmp_dir = "tmp"
+
+[build]
+  cmd = "go build -o ./tmp/server ./cmd/server"
+  entrypoint = ["./tmp/server"]
+
+  # .go 以外で再起動しない。とくに migrations/*.sql は、サーバ起動時に
+  # マイグレーションが走る作りなので、書きかけのファイルを保存した拍子に
+  # ローカル DB へ適用されると困る。適用は make migrate-up で明示的に行う。
+  include_ext = ["go"]
+
+  # node_modules を含む web/ を舐めさせない。data/ はアップロードされた写真、
+  # tmp/ は air 自身のビルド先。
+  exclude_dir = ["tmp", "bin", "web", "data", "migrations", "scripts"]
+
+  # テストを保存しただけでサーバを落とさない。
+  exclude_regex = ["_test.go"]
+
+  # cmd/server は SIGINT を受けて srv.Shutdown() まで通す作りなので、
+  # 再起動でもその経路を通す。10 秒の猶予は使い切らないが、落とすまでの
+  # 2 秒は待つ。
+  send_interrupt = true
+  kill_delay = "2s"
+
+[misc]
+  # 終了時に tmp/ を残さない。
+  clean_on_exit = true

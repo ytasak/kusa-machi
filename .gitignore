@@ -3,6 +3,9 @@
 *.test
 *.out
 
+# air のビルド先
+/tmp/
+
 # フロントエンド
 node_modules/
 web/dist/
