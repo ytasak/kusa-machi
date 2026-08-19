@@ -3,7 +3,7 @@
   import Icon from './Icon.svelte';
   import { session, remainingMsFrom, nextRecoveryMsFrom } from '../lib/session.svelte.js';
   import { ticker } from '../lib/ticker.svelte.js';
-  import { countdown, minutesLeft } from '../lib/format.js';
+  import { countdown } from '../lib/format.js';
 
   // 1ポイント増やすたびの間隔。まとめて回復した日も、増えた数だけ数字が
   // 上がるのがそのまま見える。
@@ -74,12 +74,11 @@
     <!-- 回復までの時間は残数のすぐ隣に置く。数字と「それが次にいつ増えるか」は
          同じことを言っているので、離して置くと結び付かない。 -->
     {#if untilNext !== null}
-      <span class={styles.recovery}>
-        <!-- 狭い画面ではラベルを引っ込めて、この時計だけで「あと何分か」を示す。
-             ヘッダーは1行に収まらないと高さが崩れるため、文字を折り返させない。 -->
+      <span class={styles.recovery} aria-label="次のLike回復まで">
+        <!-- 添えるのは時計だけ。ラベルを置かなくても、同じ丸の中で ❤️ の残数と
+             並んだ時刻なら「それが次に増えるまで」と読める。 -->
         <span class={styles.recoveryIcon}><Icon name="clock" size={11} /></span>
-        <span class={styles.recoveryLabel}>Like回復まで</span>
-        <span class={styles.time}>{minutesLeft(untilNext)}</span>
+        <span class={styles.recoveryTime}>{countdown(untilNext)}</span>
       </span>
     {/if}
   </span>

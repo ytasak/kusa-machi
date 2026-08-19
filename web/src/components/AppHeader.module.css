@@ -65,7 +65,7 @@
   }
 }
 
-/* 回復までの時間は残数に従属する情報。同じ丸の中に入れるが、細く小さくして
+/* 回復までの時間は残数に従属する情報。同じ丸の中に入れるが、一段小さくして
    「10 / 12」と読み違えないようにする。 */
 .recovery {
   display: inline-flex;
@@ -79,20 +79,14 @@
 }
 
 .recoveryIcon {
-  display: none;
+  display: inline-flex;
+  align-items: center;
 }
 
-/* 320px 級の画面では丸が2行に折り返し、ヘッダーの高さが崩れる。ラベルを
-   時計アイコンに置き換えて、残数と時刻だけを1行に残す。 */
-@media (max-width: 360px) {
-  .recoveryLabel {
-    display: none;
-  }
-
-  .recoveryIcon {
-    display: inline-flex;
-    align-items: center;
-  }
+/* 色は丸から受け継ぐ。同じ丸の中で残数だけが色付きだと、時刻が別のものを
+   指しているように見える。太さだけ .recovery より戻して、時刻を読ませる。 */
+.recoveryTime {
+  font-weight: 700;
 }
 
 @media (prefers-reduced-motion: reduce) {
