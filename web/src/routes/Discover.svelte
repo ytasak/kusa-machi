@@ -38,7 +38,7 @@
 
   // 「このカードはもう古い」という意味でしかないエラー。カードはすでに
   // 送り出しているので、ユーザーに見せるべきことは何も無い。
-  const STALE_CODES = new Set(['AlreadyLiked', 'TargetPersonaUnavailable', 'PassLimitReached']);
+  const STALE_CODES = new Set(['AlreadyLiked', 'TargetPersonaUnavailable']);
 
   let exitTimer = null;
   let throwSeq = 0;
@@ -115,7 +115,8 @@
     message = null;
 
     // Pass は消費する予算が無いので、送り出したら結果を待つ必要がない。
-    // 3回目でサーバが当日除外にするため、ローカルのクールダウンは常に付けてよい。
+    // サーバは Pass で候補を減らさないので、再表示を遅らせるのはこのローカルの
+    // クールダウンだけ。だから Pass のたびに必ず付ける。
     consumeCurrent({ cooldownId: target.id });
     throwCard(target, 'pass');
     vibrate(HAPTICS.pass);
