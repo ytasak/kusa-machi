@@ -43,6 +43,7 @@ web/                 Svelte + Vite
 - Node.js 24+
 - Docker（ローカル PostgreSQL 用）
 - [sqlc](https://sqlc.dev/)（SQL を変更するときのみ）
+- [air](https://github.com/air-verse/air)（`make dev` を使うときのみ）
 
 ## ローカル開発手順
 
@@ -62,12 +63,17 @@ make web-install
 ターミナルを 2 つ使う。
 
 ```bash
-make run       # API を :8080 で起動
+make dev       # API を :8080 で起動（.go の変更で自動再起動）
 make web-dev   # Vite を :5173 で起動（/api を :8080 にプロキシ）
 ```
 
 ブラウザは <http://localhost:5173> を開く。Vite のプロキシにより
 ブラウザから見た Origin はフロントと API で同一になる。
+
+`make dev` は air に Go のソースを監視させ、`.go` を保存するたびに
+ビルドし直して再起動する（設定は `.air.toml`）。監視するのは `.go` だけで、
+テストとフロントエンドの変更では再起動しない。air を入れていなければ
+`make run` でもよい。その場合は `.go` を変えるたびに手で立て直す。
 
 ### 本番と同じ構成で確認する
 
@@ -76,7 +82,9 @@ make web-build   # web/dist を生成
 make run         # :8080 で API と web/dist を同一 Origin で配信
 ```
 
-<http://localhost:8080> を開く。
+<http://localhost:8080> を開く。web/dist はリクエストごとにディスクから
+読むので、フロントを直したら `make web-build` を打ち直してブラウザを
+再読み込みすればよく、サーバの起動しなおしは要らない。
 
 ## Railway へのデプロイ
 

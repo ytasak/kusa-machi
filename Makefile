@@ -1,4 +1,4 @@
-.PHONY: help db-up db-down db-reset migrate-up migrate-down migrate-new sqlc run build test test-all fmt web-install web-dev web-build
+.PHONY: help db-up db-down db-reset migrate-up migrate-down migrate-new sqlc run dev build test test-all fmt web-install web-dev web-build
 
 DATABASE_URL ?= postgres://kusa:kusa@localhost:5433/kusamachi?sslmode=disable
 TEST_DATABASE_URL ?= postgres://kusa:kusa@localhost:5433/kusamachi_test?sslmode=disable
@@ -32,6 +32,9 @@ sqlc: ## migrations とクエリから internal/db/sqlc を再生成する
 
 run: ## API サーバを起動する（web/dist を同一 Origin で配信）
 	DATABASE_URL='$(DATABASE_URL)' COOKIE_SECURE=false COOKIE_SAMESITE=lax go run ./cmd/server
+
+dev: ## air で API サーバを起動する（.go の変更で自動再起動）
+	DATABASE_URL='$(DATABASE_URL)' COOKIE_SECURE=false COOKIE_SAMESITE=lax air
 
 build: ## サーバのバイナリを bin/ にビルドする
 	go build -o bin/server ./cmd/server
