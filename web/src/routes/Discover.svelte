@@ -11,6 +11,7 @@
   import { go, SCREENS } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
   import { vibrate, HAPTICS } from '../lib/haptics.js';
+  import { personaRank } from '../lib/gacha.js';
 
   // 送り出したカードが画面外へ抜けるまでの時間。CSS の flyLike / flyPass と揃える。
   const EXIT_MS = 460;
@@ -21,9 +22,26 @@
   let matchedPersona = $state(null);
   /** 直近の Match で回復した Like 数。演出の中に出す。 */
   let matchedLikesGained = $state(0);
+  /**
+   * カードの演出を鳴らし直すための連番。Match 演出を閉じるたびに進む。
+   *
+   * Like を送った時点で次のカードはもう出ているので、Match 演出のあいだ
+   * その裏でレア度の演出が終わってしまう。閉じたときに一度だけ鳴らし直して、
+   * 「評価 -> 次の人生 -> レア度」の並びを崩さない。
+   */
+  let revealSeq = $state(0);
 
   const card = $derived(currentCard());
   const outOfLikes = $derived(session.remainingLikes <= 0);
+
+  // 次に出るカードのレア度。人生ガチャと同じ lib/gacha.js の判定をそのまま使う。
+  // A属性から決まるので、ここで計算し直しても同じ Persona なら常に同じ答えになる。
+  const rank = $derived(card ? personaRank(card) : null);
+  /**
+   * 演出の再発火キー。Persona が変わるたびに値が変わるので、同じレア度が
+   * 続いてもカードごとに演出が最初から走る。
+   */
+  const revealKey = $derived(`${card?.id}-${revealSeq}`);
 
   onMount(refill);
 
@@ -149,10 +167,14 @@
     <div class={styles.stage}>
       <div class={styles.cardBox}>
         {#if card}
-          <!-- key を付けることで、カードが変わるたびに飛び出す動きが走る。 -->
-          {#key card.id}
-            <div class={styles.cardLayer}>
-              <PersonaCard persona={card} variant="hero" />
+          <!-- key を付けることで、カードが変わるたびに出現とレア度の演出が走る。
+               data-rank が演出の強さと長さを決め、SSR でも 0.8 秒で終わる。
+               重ねているだけなので、演出中も Like / Pass はそのまま押せる。 -->
+          {#key revealKey}
+            <div class={styles.cardLayer} data-rank={rank.label}>
+              <PersonaCard persona={card} variant="hero" rarityReveal />
+              <span class={styles.revealGlow} aria-hidden="true"></span>
+              <span class={styles.revealFlash} aria-hidden="true"></span>
             </div>
           {/key}
         {/if}
@@ -218,6 +240,9 @@
     own={session.persona}
     counterpart={matchedPersona}
     likesGained={matchedLikesGained}
-    onclose={() => (matchedPersona = null)}
+    onclose={() => {
+      matchedPersona = null;
+      revealSeq += 1;
+    }}
   />
 {/if}
