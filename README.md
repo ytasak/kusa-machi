@@ -178,7 +178,7 @@ docker run --rm -p 8080:8080 \
 | GET | `/api/personas/{id}/photo` | 当日Personaの写真を配信 |
 | GET | `/api/discover` | 最大5件の候補（`?exclude=id1,id2`） |
 | POST | `/api/likes` | Like（10件/日、相互でMatch生成） |
-| POST | `/api/passes` | Pass（同一相手3回で当日除外） |
+| POST | `/api/passes` | Pass（回数の上限なし・候補からは外さない） |
 | GET | `/api/likes/received` | Likeされた一覧（開くと既読化） |
 | GET | `/api/likes/sent` | 送信済みLike一覧（`matched` フラグ付き） |
 | GET | `/api/matches` | Match相手一覧（開くと既読化） |
@@ -202,7 +202,7 @@ make test-all    # 結合テストも実行（make db-up が必要）
 - Persona生成の全制約（年齢・学歴・職業・年収レンジ・10万円刻み）
 - Like 10件上限 / 11件目の失敗 / 並行Like / 重複Like（二重消費なし）
 - 相互Likeで Match が1件だけできること（同時実行含む）
-- Pass 1→2→3 と当日除外、exposure_count の加算タイミング
+- Pass の pass_count 加算と、exposure_count の加算タイミング
 - 日付境界（前日Personaは行動不可・前日データが当日に出ない）
 - CSRF（不正トークンは拒否、前日トークンは DayExpired）
 - プロフィール入力制約（文字数・改行・URL・A属性の拒否・HTMLはテキスト扱い）
