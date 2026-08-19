@@ -250,9 +250,11 @@
   animation: pop 420ms cubic-bezier(0.2, 1.8, 0.3, 1);
 }
 
+/* 激レアの虹色は探す画面や一覧の SSR バッジと同じもの。app.css のトークンを
+   参照して、どの画面でも同じレア度が同じ色で出るようにする。 */
 .legendBadge {
-  color: #221324;
-  background: linear-gradient(100deg, #ffd9a0, #ff8fae 35%, #b98cff 70%, #66e0ff);
+  color: var(--rarity-ssr-fg);
+  background: var(--rarity-ssr-bg);
 }
 
 .note {

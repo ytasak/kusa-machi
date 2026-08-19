@@ -1,0 +1,137 @@
+/* レア度のバッジ。配色は app.css のトークンを参照するだけにして、
+   人生ガチャの開示演出と同じ色から外れないようにする。 */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  border-radius: 999px;
+  padding: 1px 8px;
+  font-size: 10.5px;
+  font-weight: 900;
+  line-height: 1.5;
+  letter-spacing: 0.08em;
+  white-space: nowrap;
+  color: var(--rarity-n-fg);
+  background: var(--rarity-n-bg);
+  box-shadow: inset 0 0 0 1px rgb(31 29 30 / 8%);
+}
+
+.badge[data-rank='R'] {
+  color: var(--rarity-r-fg);
+  background: var(--rarity-r-bg);
+}
+
+.badge[data-rank='SR'] {
+  color: var(--rarity-sr-fg);
+  background: var(--rarity-sr-bg);
+}
+
+.badge[data-rank='SSR'] {
+  color: var(--rarity-ssr-fg);
+  background: var(--rarity-ssr-bg);
+}
+
+/* 探す画面の大きいカード用。プロフィールを見た瞬間に読める大きさにする。 */
+.lg {
+  padding: 3px 12px;
+  font-size: 13px;
+  letter-spacing: 0.1em;
+}
+
+.lg[data-rank='SR'] {
+  box-shadow:
+    inset 0 0 0 1px rgb(31 29 30 / 8%),
+    0 0 12px var(--rarity-sr-glow);
+}
+
+.lg[data-rank='SSR'] {
+  box-shadow:
+    inset 0 0 0 1px rgb(31 29 30 / 8%),
+    0 0 16px var(--rarity-ssr-glow);
+}
+
+/* ---- カードが切り替わった瞬間の強調 ---- */
+
+/* N はほぼ通常表示。カードと一緒に薄く出るだけ。 */
+.reveal {
+  animation: badgeFade 200ms ease-out both;
+}
+
+.reveal[data-rank='R'] {
+  animation: badgePop 300ms cubic-bezier(0.2, 1.6, 0.35, 1) both;
+}
+
+.reveal[data-rank='SR'] {
+  animation: badgePop 380ms cubic-bezier(0.2, 1.7, 0.35, 1) both;
+}
+
+/* SSR だけ一段強く弾ませる。それでも 0.5 秒台で終わる。 */
+.reveal[data-rank='SSR'] {
+  animation: badgeStamp 520ms cubic-bezier(0.2, 1.7, 0.3, 1) both;
+}
+
+/* 読み上げ用。目には見えないが、バッジが何の値なのかを伝える。 */
+.srOnly {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+@keyframes badgeFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes badgePop {
+  0% {
+    opacity: 0;
+    transform: scale(0.72);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.16);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes badgeStamp {
+  0% {
+    opacity: 0;
+    transform: scale(1.9) rotate(-5deg);
+  }
+  45% {
+    opacity: 1;
+    transform: scale(0.92) rotate(2deg);
+  }
+  70% {
+    transform: scale(1.1) rotate(0deg);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+/* 動きを減らす設定では強調そのものを省く。バッジは静止したまま出る。 */
+@media (prefers-reduced-motion: reduce) {
+  /* レア度ごとの指定を上書きするので、詳細度を揃えて全部並べる。 */
+  .reveal,
+  .reveal[data-rank='R'],
+  .reveal[data-rank='SR'],
+  .reveal[data-rank='SSR'] {
+    animation-duration: 1ms;
+  }
+}

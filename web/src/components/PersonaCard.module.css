@@ -60,9 +60,25 @@
 }
 
 .headline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
   margin: 2px 0 0;
   font-size: 13px;
   color: var(--text-muted);
+}
+
+.hero .headline {
+  justify-content: center;
+}
+
+/* レア度のバッジ。hero では写真の上に重ねず、カードの左上角に置く。
+   右上は「あなた」「MATCH」のバッジが使うので左に寄せる。 */
+.hero .rarity {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  z-index: 1;
 }
 
 .tags {
