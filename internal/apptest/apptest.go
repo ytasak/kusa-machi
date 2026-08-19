@@ -296,8 +296,7 @@ type ProfileUpdateResponse struct {
 
 // PassResponse は POST /api/passes に対応する。
 type PassResponse struct {
-	PassCount        int  `json:"pass_count"`
-	ExcludedForToday bool `json:"excluded_for_today"`
+	PassCount int `json:"pass_count"`
 }
 
 // Like は結果を検証せずに POST /api/likes を送る。

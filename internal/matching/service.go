@@ -305,11 +305,12 @@ func (s *Service) Like(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 
 // PassResult は Pass の後にクライアントが必要とする情報。
 type PassResult struct {
-	PassCount        int
-	ExcludedForToday bool
+	PassCount int
 }
 
-// Pass は対象への Pass を記録する。1日あたり3回で打ち止め。
+// Pass は対象への Pass を記録する。回数に上限は無く、何度 Pass しても相手が
+// 探すの候補から消えることはない。再表示までの間隔はフロントエンドの
+// クールダウンが持つ。
 func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UUID, gameDate time.Time) (PassResult, error) {
 	if actor.ID == targetID {
 		return PassResult{}, apperr.SelfActionNotAllowed
@@ -355,10 +356,6 @@ func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		FromPersonaID: actor.ID,
 		ToPersonaID:   target.ID,
 	})
-	if errors.Is(err, pgx.ErrNoRows) {
-		// 条件付き upsert が3回を超える更新を拒否した。
-		return PassResult{}, apperr.PassLimitReached
-	}
 	if err != nil {
 		return PassResult{}, fmt.Errorf("upsert pass: %w", err)
 	}
@@ -371,10 +368,7 @@ func (s *Service) Pass(ctx context.Context, actor sqlc.Persona, targetID uuid.UU
 		return PassResult{}, fmt.Errorf("commit pass: %w", err)
 	}
 
-	return PassResult{
-		PassCount:        int(count),
-		ExcludedForToday: int(count) >= MaxPassCount,
-	}, nil
+	return PassResult{PassCount: int(count)}, nil
 }
 
 // lockPair は2つの Persona 行ロックを正規化した順で取得し、実行者の行を

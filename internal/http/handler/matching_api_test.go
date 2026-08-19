@@ -179,23 +179,19 @@ func TestConcurrentMutualLikesCreateOneMatch(t *testing.T) {
 	}
 }
 
-func TestPassCountsUpToThreeThenExcludes(t *testing.T) {
+func TestPassCountsUpWithoutExcluding(t *testing.T) {
 	app := apptest.New(t)
 	alice, _ := app.NewStartedClient(t)
 	_, bobCard := app.NewStartedClient(t)
 
-	for i := 1; i <= matching.MaxPassCount; i++ {
+	// 上限は無いので、かつて打ち止めだった3回を超えても受け付ける。
+	const passes = 5
+	for i := 1; i <= passes; i++ {
 		res := alice.MustPass(t, bobCard.ID)
 		if res.PassCount != i {
 			t.Fatalf("pass %d: pass_count = %d", i, res.PassCount)
 		}
-		wantExcluded := i == matching.MaxPassCount
-		if res.ExcludedForToday != wantExcluded {
-			t.Fatalf("pass %d: excluded_for_today = %v, want %v", i, res.ExcludedForToday, wantExcluded)
-		}
 	}
-
-	alice.Pass(t, bobCard.ID).RequireError(t, apperr.CodePassLimitReached)
 
 	var stored int
 	err := app.Pool.QueryRow(t.Context(),
@@ -203,8 +199,13 @@ func TestPassCountsUpToThreeThenExcludes(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read pass_count: %v", err)
 	}
-	if stored != matching.MaxPassCount {
-		t.Fatalf("stored pass_count = %d, want %d", stored, matching.MaxPassCount)
+	if stored != passes {
+		t.Fatalf("stored pass_count = %d, want %d", stored, passes)
+	}
+
+	// 何度 Pass しても候補から消えない。除外はフロントエンドのクールダウンだけ。
+	if !idSet(alice.Discover(t).Personas)[bobCard.ID] {
+		t.Error("discover dropped a persona that was passed repeatedly")
 	}
 }
 
@@ -249,14 +250,11 @@ func TestExposureCountsEvaluationsOnly(t *testing.T) {
 func TestDiscoverExcludesEverythingItShould(t *testing.T) {
 	app := apptest.New(t)
 	alice, aliceCard := app.NewStartedClient(t)
-	_, targets := app.NewStartedClients(t, 4)
+	_, targets := app.NewStartedClients(t, 3)
 
-	liked, passedOut, cooldown, plain := targets[0], targets[1], targets[2], targets[3]
+	liked, cooldown, plain := targets[0], targets[1], targets[2]
 
 	alice.MustLike(t, liked.ID)
-	for range matching.MaxPassCount {
-		alice.MustPass(t, passedOut.ID)
-	}
 
 	got := idSet(alice.Discover(t, cooldown.ID).Personas)
 
@@ -265,9 +263,6 @@ func TestDiscoverExcludesEverythingItShould(t *testing.T) {
 	}
 	if got[liked.ID] {
 		t.Error("discover returned an already liked persona")
-	}
-	if got[passedOut.ID] {
-		t.Error("discover returned a persona passed three times")
 	}
 	if got[cooldown.ID] {
 		t.Error("discover ignored the frontend cooldown exclusion")

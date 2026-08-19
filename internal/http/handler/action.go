@@ -34,8 +34,7 @@ type likeResponse struct {
 }
 
 type passResponse struct {
-	PassCount        int  `json:"pass_count"`
-	ExcludedForToday bool `json:"excluded_for_today"`
+	PassCount int `json:"pass_count"`
 }
 
 // CreateLike は POST /api/likes を実装する。
@@ -90,10 +89,7 @@ func (h *Handler) CreatePass(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.JSON(w, http.StatusOK, passResponse{
-		PassCount:        result.PassCount,
-		ExcludedForToday: result.ExcludedForToday,
-	})
+	response.JSON(w, http.StatusOK, passResponse{PassCount: result.PassCount})
 }
 
 // readAction は対象 Persona の id をデコードし、操作する側の Persona を読み込む。
