@@ -42,18 +42,26 @@
   {:else}
     <ul class={ui.list}>
       {#each matches as match (match.match_id)}
-        <li>
+        <li class={styles.card}>
           <!-- カードごとタップして Match 詳細へ。子ガチャを引いていなければ
-               そこで引けるし、引いていればその子をもう一度見られる。 -->
-          <button class={styles.card} onclick={() => goMatchDetail(match.match_id)}>
-            <PersonaCard persona={match} badge="MATCH" />
-            <span class={styles.footer}>
-              <span class={match.child_generated ? styles.hasChild : styles.prompt}>
-                {match.child_generated ? '👶 子あり' : 'この2人の子を引く'}
-              </span>
-              <Icon name="chevron" size={16} />
+               そこで引けるし、引いていればその子をもう一度見られる。
+
+               タップ範囲を広げているのはボタンの ::after で、カードを丸ごと
+               ボタンで包んではいない。包むと読み上げがカードの中身を
+               ボタン名として畳んでしまい、相手の属性が読めなくなる。 -->
+          <PersonaCard persona={match} badge="MATCH" />
+          <div class={styles.footer}>
+            <span class={match.child_generated ? styles.hasChild : styles.prompt}>
+              {match.child_generated ? '👶 子あり' : 'この2人の子を引く'}
             </span>
-          </button>
+            <button
+              class={styles.open}
+              onclick={() => goMatchDetail(match.match_id)}
+              aria-label="Match詳細を開く"
+            >
+              <Icon name="chevron" size={16} />
+            </button>
+          </div>
         </li>
       {/each}
     </ul>

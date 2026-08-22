@@ -1,28 +1,14 @@
-/* Match 一覧。カードごとタップして詳細へ入るので、行そのものがボタンになる。 */
+/* Match 一覧。カードごとタップして詳細へ入る。 */
 
 .card {
-  display: block;
-  width: 100%;
-  padding: 0;
-  border: none;
-  text-align: left;
-  cursor: pointer;
-  /* カードと同じ紙の上に footer を載せるため、この外枠が背景と角丸を持つ。
-     中の PersonaCard は同じ白なので、境目は見えない。 */
+  /* 詳細を開くボタンがこの箱いっぱいに広がるので、基準をここに置く。 */
+  position: relative;
+  /* カードと footer を同じ紙の上に載せる。中の PersonaCard は同じ白なので、
+     境目は見えない。 */
   background: var(--surface);
   border-radius: var(--radius-card);
   box-shadow: var(--shadow-card);
   overflow: hidden;
-  transition: transform 110ms cubic-bezier(0.2, 0.9, 0.3, 1.4);
-}
-
-.card:active {
-  transform: scale(0.985);
-}
-
-.card:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 3px;
 }
 
 .footer {
@@ -30,9 +16,8 @@
   align-items: center;
   justify-content: space-between;
   gap: 8px;
-  padding: 10px 14px 12px;
+  padding: 8px 10px 10px 14px;
   border-top: 1px solid var(--border);
-  color: var(--text-muted);
 }
 
 /* 子ガチャがまだのときは、ここが次の行動の入口になる。アクセント色で誘う。 */
@@ -47,4 +32,42 @@
   font-size: 13px;
   font-weight: 700;
   color: var(--text-muted);
+}
+
+/* 詳細を開くボタン。見えているのは右端の山括弧だけだが、::after が
+   カード全体を覆うので、カードのどこを触っても開く。 */
+.open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-card);
+}
+
+/* 押した手応え。カード全体が沈むのではなく、覆っている面が薄く反応する。 */
+.open:active::after {
+  background: rgb(31 29 30 / 5%);
+}
+
+/* フォーカスリングもカード全体に出す。キーボードでもタップ範囲と同じ形が
+   見えるようにする。 */
+.open:focus-visible {
+  outline: none;
+}
+
+.open:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
 }
