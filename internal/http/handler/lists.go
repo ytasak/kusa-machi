@@ -85,19 +85,8 @@ func (h *Handler) SentLikes(w http.ResponseWriter, r *http.Request) {
 	cards := make([]sentLikeCard, 0, len(rows))
 	for _, row := range rows {
 		cards = append(cards, sentLikeCard{
-			personaCard: newPersonaCard(sqlc.Persona{
-				ID:           row.ID,
-				Age:          row.Age,
-				Gender:       row.Gender,
-				HeightCm:     row.HeightCm,
-				Education:    row.Education,
-				Occupation:   row.Occupation,
-				AnnualIncome: row.AnnualIncome,
-				Name:         row.Name,
-				Hobby:        row.Hobby,
-				Bio:          row.Bio,
-			}),
-			Matched: row.Matched,
+			personaCard: newPersonaCard(row.Persona),
+			Matched:     row.Matched,
 		})
 	}
 

@@ -10,7 +10,10 @@ ORDER BY l.created_at DESC, l.id DESC;
 -- name: ListSentLikes :many
 -- その日の Like 配分の履歴。Match した相手も一覧に残し、画面が MATCH バッジを
 -- 出せるようフラグを立てる。
-SELECT p.*, EXISTS (
+--
+-- sqlc.embed で Persona を丸ごと受け取るのは、ハンドラが列を1つずつ写さずに
+-- 済ませるため。写し忘れた列は画面から黙って消える。
+SELECT sqlc.embed(p), EXISTS (
     SELECT 1 FROM matches m
     WHERE (m.persona_low_id = sqlc.arg('persona_id') AND m.persona_high_id = p.id)
        OR (m.persona_low_id = p.id AND m.persona_high_id = sqlc.arg('persona_id'))

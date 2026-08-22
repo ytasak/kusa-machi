@@ -2,6 +2,7 @@ package handler_test
 
 import (
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
@@ -99,6 +100,63 @@ func TestSentLikesFlagsMatches(t *testing.T) {
 	if list.Personas[1].Matched {
 		t.Fatal("unmatched target is flagged as matched")
 	}
+}
+
+// 一覧に並ぶカードは、どの画面でも写真の URL を持つ。送信済みLike だけが列を
+// 手で写していて photo_updated_at を落としていたため、その一覧のアバターだけが
+// 既定のシルエットのままだった。
+func TestListCardsCarryThePhotoURL(t *testing.T) {
+	app := apptest.New(t)
+	alice, aliceCard := app.NewStartedClient(t)
+	bob, bobCard := app.NewStartedClient(t)
+
+	if uploaded := bob.UploadPhoto(t); uploaded.PhotoURL == nil {
+		t.Fatal("upload did not return a photo url")
+	}
+
+	alice.MustLike(t, bobCard.ID)
+	bob.MustLike(t, aliceCard.ID)
+
+	var sent apptest.DiscoverResponse
+	res := alice.Do(t, http.MethodGet, "/api/likes/sent", nil)
+	res.RequireStatus(t, http.StatusOK)
+	res.Decode(t, &sent)
+
+	var received apptest.DiscoverResponse
+	res = alice.Do(t, http.MethodGet, "/api/likes/received", nil)
+	res.RequireStatus(t, http.StatusOK)
+	res.Decode(t, &received)
+
+	matches := alice.Matches(t)
+
+	lists := []struct {
+		name string
+		card apptest.PersonaCard
+	}{
+		{"送信済みLike", first(t, sent.Personas)},
+		{"Likeされた", first(t, received.Personas)},
+		{"Match一覧", first(t, matches.Personas).PersonaCard},
+	}
+	for _, list := range lists {
+		if list.card.ID != bobCard.ID {
+			t.Fatalf("%s: got %s, want %s", list.name, list.card.ID, bobCard.ID)
+		}
+		if list.card.PhotoURL == nil {
+			t.Fatalf("%s: photo_url is missing, so the avatar falls back to the silhouette", list.name)
+		}
+		if !strings.Contains(*list.card.PhotoURL, bobCard.ID) {
+			t.Fatalf("%s: photo_url %s does not point at %s", list.name, *list.card.PhotoURL, bobCard.ID)
+		}
+	}
+}
+
+// first は一覧のカードをちょうど1件取り出す。
+func first[T any](t *testing.T, cards []T) T {
+	t.Helper()
+	if len(cards) != 1 {
+		t.Fatalf("list has %d cards, want 1", len(cards))
+	}
+	return cards[0]
 }
 
 func TestMatchesListsOnlyTheCounterpart(t *testing.T) {

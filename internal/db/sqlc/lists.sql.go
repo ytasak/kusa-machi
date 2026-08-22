@@ -7,7 +7,6 @@ package sqlc
 
 import (
 	"context"
-	"time"
 
 	"github.com/google/uuid"
 )
@@ -144,29 +143,15 @@ ORDER BY l.created_at DESC, l.id DESC
 `
 
 type ListSentLikesRow struct {
-	ID                   uuid.UUID
-	ParticipantID        uuid.UUID
-	Age                  int16
-	Gender               string
-	HeightCm             int16
-	Education            string
-	Occupation           string
-	AnnualIncome         int32
-	Name                 *string
-	Hobby                *string
-	Bio                  *string
-	ExposureCount        int32
-	CreatedAt            time.Time
-	PhotoUpdatedAt       *time.Time
-	ProfileRewardClaimed bool
-	MatchRewardCount     int16
-	LikeBalance          int16
-	LikeRecoveryAnchorAt *time.Time
-	Matched              bool
+	Persona Persona
+	Matched bool
 }
 
 // その日の Like 配分の履歴。Match した相手も一覧に残し、画面が MATCH バッジを
 // 出せるようフラグを立てる。
+//
+// sqlc.embed で Persona を丸ごと受け取るのは、ハンドラが列を1つずつ写さずに
+// 済ませるため。写し忘れた列は画面から黙って消える。
 func (q *Queries) ListSentLikes(ctx context.Context, personaID uuid.UUID) ([]ListSentLikesRow, error) {
 	rows, err := q.db.Query(ctx, listSentLikes, personaID)
 	if err != nil {
@@ -177,24 +162,24 @@ func (q *Queries) ListSentLikes(ctx context.Context, personaID uuid.UUID) ([]Lis
 	for rows.Next() {
 		var i ListSentLikesRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.ParticipantID,
-			&i.Age,
-			&i.Gender,
-			&i.HeightCm,
-			&i.Education,
-			&i.Occupation,
-			&i.AnnualIncome,
-			&i.Name,
-			&i.Hobby,
-			&i.Bio,
-			&i.ExposureCount,
-			&i.CreatedAt,
-			&i.PhotoUpdatedAt,
-			&i.ProfileRewardClaimed,
-			&i.MatchRewardCount,
-			&i.LikeBalance,
-			&i.LikeRecoveryAnchorAt,
+			&i.Persona.ID,
+			&i.Persona.ParticipantID,
+			&i.Persona.Age,
+			&i.Persona.Gender,
+			&i.Persona.HeightCm,
+			&i.Persona.Education,
+			&i.Persona.Occupation,
+			&i.Persona.AnnualIncome,
+			&i.Persona.Name,
+			&i.Persona.Hobby,
+			&i.Persona.Bio,
+			&i.Persona.ExposureCount,
+			&i.Persona.CreatedAt,
+			&i.Persona.PhotoUpdatedAt,
+			&i.Persona.ProfileRewardClaimed,
+			&i.Persona.MatchRewardCount,
+			&i.Persona.LikeBalance,
+			&i.Persona.LikeRecoveryAnchorAt,
 			&i.Matched,
 		); err != nil {
 			return nil, err

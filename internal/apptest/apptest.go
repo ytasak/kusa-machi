@@ -9,6 +9,9 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"image"
+	"image/color"
+	"image/jpeg"
 	"io"
 	"net/http"
 	"net/http/cookiejar"
@@ -130,21 +133,38 @@ type Response struct {
 func (c *Client) Do(t *testing.T, method, path string, body any) *Response {
 	t.Helper()
 
+	if body == nil {
+		return c.send(t, method, path, "", nil)
+	}
+
+	raw, err := json.Marshal(body)
+	if err != nil {
+		t.Fatalf("marshal body: %v", err)
+	}
+	return c.send(t, method, path, "application/json", raw)
+}
+
+// DoRaw は JSON ではない本体を送る。写真のアップロードのように、
+// バイト列をそのまま受け取るエンドポイント用。
+func (c *Client) DoRaw(t *testing.T, method, path, contentType string, body []byte) *Response {
+	t.Helper()
+	return c.send(t, method, path, contentType, body)
+}
+
+func (c *Client) send(t *testing.T, method, path, contentType string, body []byte) *Response {
+	t.Helper()
+
 	var reader io.Reader
 	if body != nil {
-		raw, err := json.Marshal(body)
-		if err != nil {
-			t.Fatalf("marshal body: %v", err)
-		}
-		reader = bytes.NewReader(raw)
+		reader = bytes.NewReader(body)
 	}
 
 	req, err := http.NewRequest(method, c.app.Server.URL+path, reader)
 	if err != nil {
 		t.Fatalf("build request: %v", err)
 	}
-	if body != nil {
-		req.Header.Set("Content-Type", "application/json")
+	if contentType != "" {
+		req.Header.Set("Content-Type", contentType)
 	}
 	if method != http.MethodGet {
 		req.Header.Set(middleware.CSRFHeader, c.csrf)
@@ -211,6 +231,7 @@ type PersonaCard struct {
 	Education    string  `json:"education"`
 	Hobby        *string `json:"hobby"`
 	Bio          *string `json:"bio"`
+	PhotoURL     *string `json:"photo_url"`
 }
 
 // Home はホーム画面を取得し、クライアントの CSRF トークンを更新する。
@@ -441,6 +462,32 @@ func (c *Client) CompleteProfile(t *testing.T) ProfileUpdateResponse {
 		"hobby": "散歩",
 		"bio":   "よろしく",
 	})
+}
+
+// UploadPhoto はプロフィール写真を上げ、更新後のカードを返す。中身は小さな
+// JPEG。サーバは受け取った画像を必ず再エンコードするので、何が写っているかは
+// テストにとって意味を持たない。
+func (c *Client) UploadPhoto(t *testing.T) PersonaCard {
+	t.Helper()
+
+	img := image.NewRGBA(image.Rect(0, 0, 64, 64))
+	for y := range 64 {
+		for x := range 64 {
+			img.Set(x, y, color.RGBA{R: uint8(x * 4), G: uint8(y * 4), B: 120, A: 255})
+		}
+	}
+
+	var buf bytes.Buffer
+	if err := jpeg.Encode(&buf, img, nil); err != nil {
+		t.Fatalf("encode photo: %v", err)
+	}
+
+	res := c.DoRaw(t, http.MethodPost, "/api/persona/photo", "image/jpeg", buf.Bytes())
+	res.RequireStatus(t, http.StatusOK)
+
+	var out PersonaCard
+	res.Decode(t, &out)
+	return out
 }
 
 // Discover は候補のバッチを取得する。除外 id を指定することもできる。
