@@ -184,7 +184,7 @@ func (g *Generator) Generate() Attributes {
 	height := minHeightCm + g.rnd.IntN(maxHeightCm-minHeightCm+1)
 	education := g.education(age)
 	occupation := g.occupation(age, education)
-	income := g.income(age, occupation)
+	income := g.incomeIn(occupation, ageIncomeExponent(age))
 
 	return Attributes{
 		Age:          age,
@@ -216,6 +216,12 @@ func (g *Generator) education(age int) string {
 // occupation は制約を満たさない候補を除外する。ホイ卒はすべての制約を
 // 無効化する。それがこのネタの肝。
 func (g *Generator) occupation(age int, education string) string {
+	return g.occupationFor(&age, education)
+}
+
+// occupationFor は制約を満たす候補だけで抽選する。age が nil のときは年齢制約を
+// 使わない。年齢を持たない子ガチャ（child.go）がこの形で呼ぶ。
+func (g *Generator) occupationFor(age *int, education string) string {
 	candidates := make([]weighted[string], 0, len(occupations))
 	for _, o := range occupations {
 		if allowsOccupation(age, education, o.value) {
@@ -225,7 +231,9 @@ func (g *Generator) occupation(age int, education string) string {
 	return pick(g.rnd, candidates)
 }
 
-func allowsOccupation(age int, education, occupation string) bool {
+// allowsOccupation は職業が成立しうるかを判定する。age が nil の場合は
+// 年齢の条件だけを飛ばし、学歴の条件はそのまま適用する。
+func allowsOccupation(age *int, education, occupation string) bool {
 	if education == EduHoi {
 		return true
 	}
@@ -233,7 +241,7 @@ func allowsOccupation(age int, education, occupation string) bool {
 	if !ok {
 		return true
 	}
-	if age < rule.minAge {
+	if age != nil && *age < rule.minAge {
 		return false
 	}
 	if len(rule.educations) > 0 && !contains(rule.educations, education) {
@@ -242,14 +250,16 @@ func allowsOccupation(age int, education, occupation string) bool {
 	return true
 }
 
-// income は職業のレンジ内から10万円刻みで値を選ぶ。
-// 年齢による補正は意図的に弱くしてあり、分布を寄せるだけで
-// 両端に到達不能な値を作らない。
-func (g *Generator) income(age int, occupation string) int {
+// incomeIn は職業のレンジ内から10万円刻みで値を選ぶ。
+//
+// exponent は一様分布 [0,1) の歪め方。1 なら一様で、1より大きいと低め、
+// 小さいと高めに寄る。通常 Persona は年齢から決めた値を渡すが、年齢を持たない
+// 子ガチャは 1 を渡してレンジ内の一様抽選にする。
+func (g *Generator) incomeIn(occupation string, exponent float64) int {
 	r := incomeRanges[occupation]
 	steps := (r.hi - r.lo) / incomeStep
 
-	u := math.Pow(g.rnd.Float64(), ageIncomeExponent(age))
+	u := math.Pow(g.rnd.Float64(), exponent)
 
 	step := int(u * float64(steps+1))
 	if step > steps {
@@ -258,7 +268,8 @@ func (g *Generator) income(age int, occupation string) int {
 	return r.lo + step*incomeStep
 }
 
-// ageIncomeExponent は一様分布 [0,1) を歪める。1より大きいと低め、小さいと高めに寄る。
+// ageIncomeExponent は年齢から年収の歪め方を決める。年齢による補正は意図的に
+// 弱くしてあり、分布を寄せるだけで両端に到達不能な値を作らない。
 func ageIncomeExponent(age int) float64 {
 	switch {
 	case age < 30:
