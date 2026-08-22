@@ -1,7 +1,7 @@
 // 画面遷移。
 //
-// 5つのタブ画面へはいつでも1タップで移動できる。プロフィール編集だけが
-// マイページの配下にプッシュされる画面。
+// 5つのタブ画面へはいつでも1タップで移動できる。プロフィール編集と Match 詳細が
+// タブの配下にプッシュされる画面。
 
 export const SCREENS = {
   discover: 'discover',
@@ -10,6 +10,7 @@ export const SCREENS = {
   mypage: 'mypage',
   sentLikes: 'sentLikes',
   profile: 'profile',
+  matchDetail: 'matchDetail',
 };
 
 /**
@@ -32,12 +33,41 @@ export const SIDE_TABS = [
 /** プッシュされた画面は、所属するタブに対応付ける。 */
 const PARENT_TAB = {
   [SCREENS.profile]: SCREENS.mypage,
+  [SCREENS.matchDetail]: SCREENS.matches,
 };
 
-export const nav = $state({ screen: SCREENS.discover });
+export const nav = $state({
+  screen: SCREENS.discover,
+  /** Match 詳細で開いている match_id。他の画面では使わない。 */
+  matchID: null,
+  /**
+   * 開いた直後に子ガチャを始めるか。Match 成立演出の「この2人の子を引く」から
+   * 入ったときだけ true になり、詳細画面が読み取ったところで下ろす。
+   */
+  matchAutoDraw: false,
+});
 
 export function go(screen) {
   nav.screen = screen;
+}
+
+/**
+ * Match 詳細を開く。
+ *
+ * draw を立てると、開いた直後に子ガチャが始まる。Match 成立演出から
+ * 「この2人の子を引く」で入る経路がこれで、一覧のカードからは false で入る。
+ */
+export function goMatchDetail(matchID, { draw = false } = {}) {
+  nav.matchID = matchID;
+  nav.matchAutoDraw = draw;
+  nav.screen = SCREENS.matchDetail;
+}
+
+/** Match 詳細から一覧へ戻る。 */
+export function goMatches() {
+  nav.matchID = null;
+  nav.matchAutoDraw = false;
+  nav.screen = SCREENS.matches;
 }
 
 export function goMyPage() {

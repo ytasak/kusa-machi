@@ -5,7 +5,7 @@
   import { rollNewLife } from '../lib/reveal.svelte.js';
   import { vibrate, HAPTICS } from '../lib/haptics.js';
 
-  // 抽選中の表示も失敗時の案内も PersonaReveal のオーバーレイが引き受けるので、
+  // 抽選中の表示も失敗時の案内も GachaReveal のオーバーレイが引き受けるので、
   // この画面はボタンを出すだけでよい。
   function onStart() {
     vibrate(HAPTICS.start);

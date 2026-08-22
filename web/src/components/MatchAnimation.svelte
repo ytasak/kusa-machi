@@ -5,7 +5,10 @@
   // 仕様の Match アニメーションが求めるとおり、両者の Persona を並べて見せる。
   // likesGained は Match 報酬で実際に増えた Like の数。所持上限で何も増えな
   // かったときは 0 で来るので、その場合は回復の行を出さない。
-  let { own, counterpart, likesGained = 0, onclose } = $props();
+  //
+  // ondrawchild は子ガチャへ入る導線。ここで引かずに閉じても、Match 一覧から
+  // 当日中はいつでも引けるので、この場での抽選は強制しない。
+  let { own, counterpart, likesGained = 0, ondrawchild = null, onclose } = $props();
 
   const SHAPES = ['♥', '♥', '♥', '✦', '★'];
   const COLORS = ['#ff5470', '#ffd166', '#ff8fae', '#66e0ff', '#fff', '#ffb03a'];
@@ -58,6 +61,13 @@
       <PersonaCard persona={counterpart} />
     </div>
 
-    <button class={styles.close} onclick={onclose}>とじる</button>
+    {#if ondrawchild}
+      <div class={styles.actions}>
+        <button class={styles.draw} onclick={ondrawchild}>この2人の子を引く</button>
+        <button class={styles.later} onclick={onclose}>あとで見る</button>
+      </div>
+    {:else}
+      <button class={styles.close} onclick={onclose}>とじる</button>
+    {/if}
   </div>
 </div>

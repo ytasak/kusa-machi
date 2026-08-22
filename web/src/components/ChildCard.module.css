@@ -1,0 +1,51 @@
+/* 子ガチャの結果カード。Persona カードと同じトークンを使い、
+   同じ紙の上の別のカードに見えるようにする。 */
+
+.card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 42px 20px 18px;
+  text-align: center;
+  background: linear-gradient(180deg, var(--accent-soft) 0%, var(--surface) 70%);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+}
+
+/* Persona カードの hero と同じ位置。並べたときに目が同じ場所を追える。 */
+.rarity {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+}
+
+.headline {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.tags {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 6px;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 4px;
+  background: var(--surface-sunken);
+  border-radius: 999px;
+  padding: 5px 11px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.tagLabel {
+  color: var(--text-muted);
+  font-size: 11px;
+}
