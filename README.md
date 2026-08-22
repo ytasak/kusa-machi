@@ -24,7 +24,7 @@ internal/clock/      JST ゲーム日付の抽象化（テスト用 Fake クロ�
 internal/config/     環境変数
 internal/apperr/     ドメインエラーコードと HTTP ステータスの対応
 internal/participant/ Cookie による匿名 identity と日次 Participant
-internal/persona/    Persona 生成器とプロフィール入力の検証
+internal/persona/    Persona 生成器・子ガチャの抽選・プロフィール入力の検証
 internal/matching/   Like / Pass / Match のトランザクションと市場ルール
 internal/photo/      プロフィール写真の正規化とファイル保存
 internal/cleanup/    前日データの物理削除ジョブ
@@ -189,7 +189,9 @@ docker run --rm -p 8080:8080 \
 | POST | `/api/passes` | Pass（回数の上限なし・候補からは外さない） |
 | GET | `/api/likes/received` | Likeされた一覧（開くと既読化） |
 | GET | `/api/likes/sent` | 送信済みLike一覧（`matched` フラグ付き） |
-| GET | `/api/matches` | Match相手一覧（開くと既読化） |
+| GET | `/api/matches` | Match相手一覧（開くと既読化。`match_id` / `child_generated` 付き） |
+| GET | `/api/matches/{id}` | Match詳細（自分・相手・子ガチャの状態） |
+| POST | `/api/matches/{id}/child` | 子ガチャ（1 Matchにつき1回・冪等・引き直し不可） |
 
 エラーは `{"error":{"code":"LikeLimitExceeded","message":"..."}}` 形式。
 フロントは `error.code` で分岐する。
@@ -210,6 +212,8 @@ make test-all    # 結合テストも実行（make db-up が必要）
 - Persona生成の全制約（年齢・学歴・職業・年収レンジ・10万円刻み）
 - Like 10件上限 / 11件目の失敗 / 並行Like / 重複Like（二重消費なし）
 - 相互Likeで Match が1件だけできること（同時実行含む）
+- 子ガチャ（1 Matchにつき1人・並行実行でも増えない・他人のMatchは不可）
+- 子の属性（親平均±15cmの身長・学歴bias・ホイ卒率・年齢制約を使わない職業）
 - Pass の pass_count 加算と、exposure_count の加算タイミング
 - 日付境界（前日Personaは行動不可・前日データが当日に出ない）
 - CSRF（不正トークンは拒否、前日トークンは DayExpired）
