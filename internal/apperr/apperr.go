@@ -12,6 +12,7 @@ const (
 	CodeLikeLimitExceeded        Code = "LikeLimitExceeded"
 	CodeAlreadyLiked             Code = "AlreadyLiked"
 	CodeTargetPersonaUnavailable Code = "TargetPersonaUnavailable"
+	CodeMatchUnavailable         Code = "MatchUnavailable"
 	CodeSelfActionNotAllowed     Code = "SelfActionNotAllowed"
 	CodeDayExpired               Code = "DayExpired"
 	CodeInvalidProfileInput      Code = "InvalidProfileInput"
@@ -40,6 +41,7 @@ var (
 	LikeLimitExceeded        = New(CodeLikeLimitExceeded, "今日のLikeを使い切りました")
 	AlreadyLiked             = New(CodeAlreadyLiked, "この相手にはすでにLikeを送っています")
 	TargetPersonaUnavailable = New(CodeTargetPersonaUnavailable, "対象のPersonaは利用できません")
+	MatchUnavailable         = New(CodeMatchUnavailable, "対象のMatchは利用できません")
 	SelfActionNotAllowed     = New(CodeSelfActionNotAllowed, "自分のPersonaへの操作はできません")
 	DayExpired               = New(CodeDayExpired, "ゲーム日が終了しています")
 	InvalidCSRF              = New(CodeInvalidCSRF, "CSRFトークンが不正です")
@@ -52,7 +54,7 @@ func HTTPStatus(code Code) int {
 		return http.StatusBadRequest
 	case CodeInvalidCSRF:
 		return http.StatusForbidden
-	case CodePersonaNotGenerated, CodeTargetPersonaUnavailable:
+	case CodePersonaNotGenerated, CodeTargetPersonaUnavailable, CodeMatchUnavailable:
 		return http.StatusNotFound
 	case CodeAlreadyLiked, CodeDayExpired:
 		return http.StatusConflict
