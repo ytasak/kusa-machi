@@ -1,0 +1,52 @@
+/* Match 詳細。上半分が成立した2人、下半分が子ガチャ。 */
+
+.matched {
+  margin: 0;
+  text-align: center;
+  background: var(--accent-gradient);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  font-size: 30px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+}
+
+.pair {
+  display: grid;
+  gap: 10px;
+}
+
+/* 子ガチャの区画。2人のカードと地続きに見えないよう、上に線を引いて分ける。 */
+.child {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 6px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.childTitle {
+  margin: 0;
+  text-align: center;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-indent: 0.16em;
+}
+
+.lead {
+  margin: 0;
+  text-align: center;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  text-wrap: balance;
+}
+
+.note {
+  margin: 0;
+  text-align: center;
+  font-size: 12px;
+  color: var(--text-muted);
+}

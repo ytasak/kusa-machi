@@ -21,8 +21,18 @@ WHERE l.from_persona_id = sqlc.arg('persona_id')
 ORDER BY l.created_at DESC, l.id DESC;
 
 -- name: ListMatches :many
--- 各 Match の相手 Persona だけを新しい順に返す。
-SELECT p.*
+-- 各 Match の相手 Persona を新しい順に返す。
+--
+-- match_id を添えるのは、一覧のカードから Match 詳細を開けるようにするため。
+-- child_generated は子ガチャを引いたかどうかで、一覧では「👶 子あり」の
+-- 目印と、詳細を開いたときに演出を出すかどうかの判断に使う。子の中身そのものは
+-- 一覧には出さない。
+SELECT
+    m.id AS match_id,
+    sqlc.embed(p),
+    EXISTS (
+        SELECT 1 FROM match_children c WHERE c.match_id = m.id
+    ) AS child_generated
 FROM matches m
 JOIN personas p ON p.id = CASE
     WHEN m.persona_low_id = sqlc.arg('persona_id') THEN m.persona_high_id

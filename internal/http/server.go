@@ -75,6 +75,8 @@ func NewRouter(deps Deps) http.Handler {
 			r.Get("/likes/received", h.ReceivedLikes)
 			r.Get("/likes/sent", h.SentLikes)
 			r.Get("/matches", h.Matches)
+			r.Get("/matches/{matchID}", h.MatchDetail)
+			r.Post("/matches/{matchID}/child", h.CreateMatchChild)
 		})
 	})
 

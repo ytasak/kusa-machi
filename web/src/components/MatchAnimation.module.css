@@ -92,6 +92,40 @@
   animation: riseIn 400ms ease-out 320ms both;
 }
 
+/* ---- 子ガチャへの導線 ---- */
+
+.actions {
+  display: grid;
+  gap: 8px;
+  animation: riseIn 400ms ease-out 320ms both;
+}
+
+/* 次の行動はこちら。暗い背景の上でも主 CTA だと分かるよう、アプリ本体と
+   同じアクセントのグラデーションで塗る。 */
+.draw {
+  border: none;
+  border-radius: var(--radius-control);
+  background: var(--accent-gradient);
+  color: #fff;
+  padding: 15px 16px;
+  font-size: 15px;
+  font-weight: 700;
+  cursor: pointer;
+  box-shadow: var(--shadow-raised);
+}
+
+/* 引かずに閉じる側。一覧から後で回収できるので、引くことを強制しない。 */
+.later {
+  border: 1px solid rgb(255 255 255 / 26%);
+  border-radius: var(--radius-control);
+  background: none;
+  color: #f4efe8;
+  padding: 12px 16px;
+  font-size: 14px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
 @keyframes backdropIn {
   from {
     opacity: 0;
@@ -151,6 +185,7 @@
   .copy,
   .pair,
   .close,
+  .actions,
   .backdrop {
     animation-duration: 1ms;
   }

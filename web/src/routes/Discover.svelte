@@ -8,7 +8,7 @@
   import { api, ApiError } from '../lib/api.js';
   import { session, withDayGuard, applyLikeState } from '../lib/session.svelte.js';
   import { discover, currentCard, consumeCurrent, ensureCards } from '../lib/discover.svelte.js';
-  import { go, SCREENS } from '../lib/nav.svelte.js';
+  import { go, goMatchDetail, SCREENS } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
   import { vibrate, HAPTICS } from '../lib/haptics.js';
   import { personaRank } from '../lib/gacha.js';
@@ -47,6 +47,8 @@
   let matchedPersona = $state(null);
   /** 直近の Match で回復した Like 数。演出の中に出す。 */
   let matchedLikesGained = $state(0);
+  /** 直近の Match の id。子ガチャへ入るために演出へ渡す。 */
+  let matchedID = $state(null);
   /**
    * レア度の演出を鳴らし直すための通し番号。1枚評価するたびに進む。
    *
@@ -145,6 +147,7 @@
         session.matchCount += 1;
         matchedPersona = res.target_persona;
         matchedLikesGained = res.likes_gained;
+        matchedID = res.match_id;
         vibrate(HAPTICS.match);
       }
     } catch (e) {
@@ -164,6 +167,16 @@
     if (!(e instanceof ApiError) || !STALE_CODES.has(e.code)) {
       message = errorMessage(e);
     }
+  }
+
+  /**
+   * Match 演出から子ガチャへ入る。演出を閉じてから Match 詳細へ移る。
+   * 閉じないままだと、詳細画面の上に演出が残ったままになる。
+   */
+  function drawChildFromMatch() {
+    const id = matchedID;
+    matchedPersona = null;
+    goMatchDetail(id, { draw: true });
   }
 
   async function onPass() {
@@ -298,6 +311,7 @@
     own={session.persona}
     counterpart={matchedPersona}
     likesGained={matchedLikesGained}
+    ondrawchild={drawChildFromMatch}
     onclose={() => {
       matchedPersona = null;
       revealSeq += 1;

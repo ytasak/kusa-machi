@@ -128,9 +128,37 @@ export const REVEAL_STEPS = [
   },
 ];
 
-/** 開示する項目をすべて解決する。確定値・レア度・回転中の候補が1つに揃う。 */
-export function revealItems(persona) {
-  return REVEAL_STEPS.map((step) => {
+/**
+ * 項目ごとの回転時間。後半ほど長く溜める。REVEAL_STEPS と同じ並び。
+ * 回転から確定までの運びは GachaReveal が持つので、長さだけをここに置く。
+ */
+export const REVEAL_SPIN_MS = [420, 320, 500, 640, 780, 1000];
+
+/**
+ * 子ガチャの回転時間。CHILD_REVEAL_STEPS と同じ並び。
+ *
+ * 人生ガチャより短くする。人生は1日1回きりの山場だが、子ガチャは Match の
+ * たびに引けるので、同じ長さで待たせると重い。
+ */
+export const CHILD_REVEAL_SPIN_MS = [300, 380, 460, 560, 700];
+
+/**
+ * 年齢を持たない対象の開示項目。子ガチャがこれを使う。
+ *
+ * 判定そのものは REVEAL_STEPS から1つ外すだけで、子ガチャ専用のしきい値も
+ * 専用の評価体系も持たない。身長・学歴・職業・年収のレア度は、他人の人生を
+ * 見るときとまったく同じ基準で読む。
+ */
+export const CHILD_REVEAL_STEPS = REVEAL_STEPS.filter((step) => step.key !== 'age');
+
+/**
+ * 開示する項目をすべて解決する。確定値・レア度・回転中の候補が1つに揃う。
+ *
+ * steps を差し替えられるのは、年齢を持たない子ガチャのため。属性が欠けている
+ * 対象に対して、その属性のステップごと外して同じ判定を通す。
+ */
+export function revealItems(persona, steps = REVEAL_STEPS) {
+  return steps.map((step) => {
     const { tier, note } = step.rarity(persona);
     return {
       key: step.key,
@@ -167,4 +195,20 @@ export function rankOf(items) {
  */
 export function personaRank(persona) {
   return rankOf(revealItems(persona));
+}
+
+/** 子ガチャの開示項目。年齢のステップだけを外した同じ判定を通す。 */
+export function childRevealItems(child) {
+  return revealItems(child, CHILD_REVEAL_STEPS);
+}
+
+/**
+ * 子1人の総合レア度。
+ *
+ * personaRank と同じ理由で、子のレア度の入口もこの関数だけにする。属性は
+ * 生成時に保存されて動かないので、Match 詳細を開き直しても同じレア度になる。
+ * 親のレア度は入力に含まれない。SSR どうしから N も出るし、その逆も出る。
+ */
+export function childRank(child) {
+  return rankOf(childRevealItems(child));
 }

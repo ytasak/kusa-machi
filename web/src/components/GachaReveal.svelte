@@ -1,33 +1,43 @@
 <script>
   import { onDestroy } from 'svelte';
-  import styles from './PersonaReveal.module.css';
+  import styles from './GachaReveal.module.css';
   import ui from './ui.module.css';
-  import PersonaCard from './PersonaCard.svelte';
-  import { revealItems, rankOf, TIER } from '../lib/gacha.js';
+  import { rankOf, TIER } from '../lib/gacha.js';
   import { vibrate, HAPTICS } from '../lib/haptics.js';
 
-  // 抽選済みの Persona を1属性ずつ開示する全画面演出。
-  // persona が null のあいだは抽選中の溜めを見せ、届いた時点で開示が始まる。
-  let { persona = null, error = null, onretry, onclose } = $props();
+  // 抽選済みの結果を1属性ずつ開示する全画面演出。
+  //
+  // 人生ガチャ（新しい人生）と子ガチャの両方がこれを使う。違うのは開示する
+  // 項目・文言・最後に出すカードだけで、回転から確定までの運びは共通にする。
+  // ここが2つに分かれると、片方だけ手触りが古くなる。
+  //
+  // items は lib/gacha.js が解決した開示項目。空のあいだは抽選中の溜めを
+  // 見せ、届いた時点で開示が始まる。
+  let {
+    items = [],
+    error = null,
+    label,
+    chargingLabel,
+    ctaLabel,
+    spinMs,
+    holdMs = 800,
+    /** null なら失敗しても再試行ボタンを出さない（引き直せないガチャ向け）。 */
+    onretry = null,
+    onclose,
+    /** 出し終えたあとに出すカード。 */
+    result,
+  } = $props();
 
   /** 回転中に表示を差し替える間隔。速すぎると読めず、遅いと止まって見える。 */
   const SPIN_TICK_MS = 55;
-  /** 項目ごとの回転時間。後半ほど長く溜める。REVEAL_STEPS と同じ並び。 */
-  const SPIN_MS = [420, 320, 500, 640, 780, 1000];
   /** ガチャの慣習どおり、当たりのときだけ演出を引き延ばす。 */
   const RARE_EXTRA_MS = 650;
-  /** 確定を見せてから次へ進むまでの間。 */
-  const HOLD_MS = 800;
 
   const reduceMotion =
     typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
 
   const SHAPES = ['✦', '★', '♥', '✧'];
   const COLORS = ['#ffd166', '#ff8fae', '#66e0ff', '#b98cff', '#fff'];
-
-  // 抽選結果が届いた時点で確定する。開示が始まる前の初回描画でも
-  // 1件目を参照できるよう、$effect ではなくここで導出しておく。
-  const items = $derived(persona ? revealItems(persona) : []);
 
   let index = $state(0);
   /** 'spin' 回転中 / 'lock' 確定を見せている / 'done' 全部出し終えた */
@@ -53,7 +63,7 @@
   const shown = $derived(phase === 'spin' ? spinText : (current?.value ?? ''));
   const valueSize = $derived(sizeFor(current?.chars ?? 4));
 
-  // 抽選結果が届いたら開示を始める。人生は1日1回なので二度は走らない。
+  // 抽選結果が届いたら開示を始める。1回引いたら二度は走らない。
   $effect(() => {
     if (items.length > 0 && !started) {
       started = true;
@@ -96,7 +106,7 @@
       return;
     }
     tickTimer = setInterval(() => (spinText = item.spin()), SPIN_TICK_MS);
-    stepTimer = setTimeout(lockStep, SPIN_MS[i] + (item.tier > TIER.normal ? RARE_EXTRA_MS : 0));
+    stepTimer = setTimeout(lockStep, spinMs[i] + (item.tier > TIER.normal ? RARE_EXTRA_MS : 0));
   }
 
   function lockStep() {
@@ -109,7 +119,7 @@
     if (item.tier === TIER.legend) spawnBurst(24);
 
     // 動きを減らす設定でも1項目ずつ読める間は残す。急がせるのが目的ではない。
-    stepTimer = setTimeout(advance, reduceMotion ? 550 : HOLD_MS);
+    stepTimer = setTimeout(advance, reduceMotion ? 550 : holdMs);
   }
 
   function advance() {
@@ -169,10 +179,10 @@
 <div
   class={styles.backdrop}
   data-tier={glow}
-  data-stage={persona && !error ? 'reveal' : 'charge'}
+  data-stage={items.length > 0 && !error ? 'reveal' : 'charge'}
   role="dialog"
   aria-modal="true"
-  aria-label="新しい人生の抽選"
+  aria-label={label}
 >
   <div class={styles.rays} aria-hidden="true"></div>
 
@@ -192,7 +202,7 @@
     {/key}
   {/if}
 
-  {#if !error && persona && phase !== 'done'}
+  {#if !error && items.length > 0 && phase !== 'done'}
     <!-- 画面のどこを触っても進む。ガチャは連打できてこそ気持ちがいい。 -->
     <button
       bind:this={tapEl}
@@ -205,27 +215,33 @@
   <div class={styles.content}>
     {#if error}
       <p class={ui.error}>{error}</p>
-      <button bind:this={ctaEl} class="{ui.primary} {styles.cta}" onclick={onretry}>
-        もう一度引く
-      </button>
-      <button class={styles.skip} onclick={onclose}>とじる</button>
-    {:else if !persona}
+      {#if onretry}
+        <button bind:this={ctaEl} class="{ui.primary} {styles.cta}" onclick={onretry}>
+          もう一度引く
+        </button>
+        <button class={styles.skip} onclick={onclose}>とじる</button>
+      {:else}
+        <button bind:this={ctaEl} class="{ui.primary} {styles.cta}" onclick={onclose}>
+          とじる
+        </button>
+      {/if}
+    {:else if items.length === 0}
       <div class={styles.orbWrap} aria-hidden="true">
         <span class={styles.orbRing}></span>
         <span class={styles.orb}></span>
       </div>
-      <p class={styles.charging}>人生を抽選しています</p>
+      <p class={styles.charging}>{chargingLabel}</p>
     {:else if phase === 'done'}
       <p class={styles.rankLabel}>総合レア度</p>
       <p class={styles.rank}>{rank.label}</p>
       <p class={styles.rankCopy}>{rank.copy}</p>
 
       <div class={styles.cardSlot}>
-        <PersonaCard {persona} variant="hero" badge="あなた" />
+        {@render result?.()}
       </div>
 
       <button bind:this={ctaEl} class="{ui.primary} {styles.cta}" onclick={onclose}>
-        この人生を始める
+        {ctaLabel}
       </button>
     {:else}
       <ol class={styles.pips} aria-hidden="true">

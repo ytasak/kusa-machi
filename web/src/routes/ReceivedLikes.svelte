@@ -7,6 +7,7 @@
   import MatchAnimation from '../components/MatchAnimation.svelte';
   import { api, ApiError } from '../lib/api.js';
   import { session, withDayGuard, applyLikeState } from '../lib/session.svelte.js';
+  import { goMatchDetail } from '../lib/nav.svelte.js';
   import { errorMessage } from '../lib/errors.js';
 
   let personas = $state([]);
@@ -14,6 +15,9 @@
   let error = $state(null);
   let message = $state(null);
   let matchedPersona = $state(null);
+  /** 直近の Match の id と Like 回復数。どちらも Match 演出の中で使う。 */
+  let matchedID = $state(null);
+  let matchedLikesGained = $state(0);
 
   // このセッションでの、カードごとの Like お返しの結果。
   let outcome = $state({});
@@ -55,6 +59,8 @@
         session.matchCount += 1;
         outcome = { ...outcome, [persona.id]: 'matched' };
         matchedPersona = res.target_persona;
+        matchedID = res.match_id;
+        matchedLikesGained = res.likes_gained;
       } else {
         outcome = { ...outcome, [persona.id]: 'liked' };
       }
@@ -68,6 +74,16 @@
       }
       message = errorMessage(e);
     }
+  }
+
+  /**
+   * Match 演出から子ガチャへ入る。演出を閉じてから Match 詳細へ移る。
+   * 閉じないままだと、詳細画面の上に演出が残ったままになる。
+   */
+  function drawChildFromMatch() {
+    const id = matchedID;
+    matchedPersona = null;
+    goMatchDetail(id, { draw: true });
   }
 </script>
 
@@ -108,6 +124,8 @@
   <MatchAnimation
     own={session.persona}
     counterpart={matchedPersona}
+    likesGained={matchedLikesGained}
+    ondrawchild={drawChildFromMatch}
     onclose={() => (matchedPersona = null)}
   />
 {/if}

@@ -1,0 +1,73 @@
+/* Match 一覧。カードごとタップして詳細へ入る。 */
+
+.card {
+  /* 詳細を開くボタンがこの箱いっぱいに広がるので、基準をここに置く。 */
+  position: relative;
+  /* カードと footer を同じ紙の上に載せる。中の PersonaCard は同じ白なので、
+     境目は見えない。 */
+  background: var(--surface);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  overflow: hidden;
+}
+
+.footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 8px 10px 10px 14px;
+  border-top: 1px solid var(--border);
+}
+
+/* 子ガチャがまだのときは、ここが次の行動の入口になる。アクセント色で誘う。 */
+.prompt {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-strong);
+}
+
+/* 引いたあとは案内ではなく状態表示。静かに出す。 */
+.hasChild {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-muted);
+}
+
+/* 詳細を開くボタン。見えているのは右端の山括弧だけだが、::after が
+   カード全体を覆うので、カードのどこを触っても開く。 */
+.open {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: none;
+  border-radius: 50%;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.open::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: var(--radius-card);
+}
+
+/* 押した手応え。カード全体が沈むのではなく、覆っている面が薄く反応する。 */
+.open:active::after {
+  background: rgb(31 29 30 / 5%);
+}
+
+/* フォーカスリングもカード全体に出す。キーボードでもタップ範囲と同じ形が
+   見えるようにする。 */
+.open:focus-visible {
+  outline: none;
+}
+
+.open:focus-visible::after {
+  outline: 2px solid var(--accent);
+  outline-offset: -3px;
+}

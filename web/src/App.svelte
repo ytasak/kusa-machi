@@ -11,9 +11,11 @@
   import ReceivedLikes from './routes/ReceivedLikes.svelte';
   import SentLikes from './routes/SentLikes.svelte';
   import Matches from './routes/Matches.svelte';
+  import MatchDetail from './routes/MatchDetail.svelte';
   import MyPage from './routes/MyPage.svelte';
   import ProfileEdit from './routes/ProfileEdit.svelte';
-  import PersonaReveal from './components/PersonaReveal.svelte';
+  import GachaReveal from './components/GachaReveal.svelte';
+  import PersonaCard from './components/PersonaCard.svelte';
   import {
     session,
     bootstrap,
@@ -25,6 +27,7 @@
   import { ticker, startTicker } from './lib/ticker.svelte.js';
   import { nav, SCREENS } from './lib/nav.svelte.js';
   import { reveal, rollNewLife, closeReveal } from './lib/reveal.svelte.js';
+  import { revealItems, REVEAL_SPIN_MS } from './lib/gacha.js';
 
   const FIVE_MINUTES_MS = 5 * 60 * 1000;
 
@@ -103,6 +106,12 @@
         <ReceivedLikes />
       {:else if nav.screen === SCREENS.matches}
         <Matches />
+      {:else if nav.screen === SCREENS.matchDetail}
+        <!-- 開いている Match で鍵を付ける。別の Match を開いたときに、前の
+             詳細の状態を持ち越さず作り直させる。 -->
+        {#key nav.matchID}
+          <MatchDetail />
+        {/key}
       {:else if nav.screen === SCREENS.mypage}
         <MyPage />
       {:else if nav.screen === SCREENS.sentLikes}
@@ -132,10 +141,18 @@
 <!-- 抽選の溜めから開示までを引き受けるオーバーレイ。開始画面からでも
      「今日の人生が終了しました」からでも、ここに着地する。 -->
 {#if reveal.active}
-  <PersonaReveal
-    persona={reveal.persona}
+  <GachaReveal
+    items={reveal.persona ? revealItems(reveal.persona) : []}
     error={reveal.error}
+    label="新しい人生の抽選"
+    chargingLabel="人生を抽選しています"
+    ctaLabel="この人生を始める"
+    spinMs={REVEAL_SPIN_MS}
     onretry={rollNewLife}
     onclose={closeReveal}
-  />
+  >
+    {#snippet result()}
+      <PersonaCard persona={reveal.persona} variant="hero" badge="あなた" />
+    {/snippet}
+  </GachaReveal>
 {/if}

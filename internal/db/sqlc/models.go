@@ -24,6 +24,17 @@ type Match struct {
 	CreatedAt     time.Time
 }
 
+type MatchChild struct {
+	ID           uuid.UUID
+	MatchID      uuid.UUID
+	Gender       string
+	HeightCm     int16
+	Education    string
+	Occupation   string
+	AnnualIncome int32
+	CreatedAt    time.Time
+}
+
 type Participant struct {
 	ID                uuid.UUID
 	CookieToken       uuid.UUID
