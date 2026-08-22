@@ -65,7 +65,7 @@ func New(t *testing.T) *App {
 		t.Fatalf("connect test database: %v", err)
 	}
 
-	if _, err := pool.Exec(ctx, `TRUNCATE participants, personas, likes, passes, matches`); err != nil {
+	if _, err := pool.Exec(ctx, `TRUNCATE participants, personas, likes, passes, matches, match_children`); err != nil {
 		pool.Close()
 		t.Fatalf("truncate: %v", err)
 	}
@@ -331,6 +331,88 @@ func (c *Client) MustPass(t *testing.T, personaID string) PassResponse {
 	var out PassResponse
 	res.Decode(t, &out)
 	return out
+}
+
+// MatchCard は Match 一覧の1件。相手の公開カードに match_id と子ガチャの
+// 有無が添えられている。
+type MatchCard struct {
+	PersonaCard
+	MatchID        string `json:"match_id"`
+	ChildGenerated bool   `json:"child_generated"`
+}
+
+// MatchListResponse は GET /api/matches に対応する。
+type MatchListResponse struct {
+	Personas []MatchCard `json:"personas"`
+}
+
+// ChildCard は子ガチャの結果に対応する。年齢は持たない。
+type ChildCard struct {
+	Gender       string `json:"gender"`
+	HeightCm     int    `json:"height_cm"`
+	Education    string `json:"education"`
+	Occupation   string `json:"occupation"`
+	AnnualIncome int    `json:"annual_income"`
+}
+
+// MatchDetailResponse は GET /api/matches/{match_id} に対応する。
+type MatchDetailResponse struct {
+	MatchID        string      `json:"match_id"`
+	OwnPersona     PersonaCard `json:"own_persona"`
+	TargetPersona  PersonaCard `json:"target_persona"`
+	ChildGenerated bool        `json:"child_generated"`
+	Child          *ChildCard  `json:"child"`
+}
+
+// Matches は Match 一覧を開く。実際の画面と同じく、バッジもここで消える。
+func (c *Client) Matches(t *testing.T) MatchListResponse {
+	t.Helper()
+	res := c.Do(t, http.MethodGet, "/api/matches", nil)
+	res.RequireStatus(t, http.StatusOK)
+
+	var out MatchListResponse
+	res.Decode(t, &out)
+	return out
+}
+
+// MatchDetail は Match 詳細を取得する。
+func (c *Client) MatchDetail(t *testing.T, matchID string) MatchDetailResponse {
+	t.Helper()
+	res := c.Do(t, http.MethodGet, "/api/matches/"+matchID, nil)
+	res.RequireStatus(t, http.StatusOK)
+
+	var out MatchDetailResponse
+	res.Decode(t, &out)
+	return out
+}
+
+// DrawChild は結果を検証せずに子ガチャを引く。
+func (c *Client) DrawChild(t *testing.T, matchID string) *Response {
+	t.Helper()
+	return c.Do(t, http.MethodPost, "/api/matches/"+matchID+"/child", nil)
+}
+
+// MustDrawChild は子ガチャを引き、成功することを要求する。
+func (c *Client) MustDrawChild(t *testing.T, matchID string) ChildCard {
+	t.Helper()
+	res := c.DrawChild(t, matchID)
+	res.RequireStatus(t, http.StatusOK)
+
+	var out ChildCard
+	res.Decode(t, &out)
+	return out
+}
+
+// MatchBetween は相互 Like で Match を1つ成立させ、その match_id を返す。
+func (a *App) MatchBetween(t *testing.T, x *Client, xCard PersonaCard, y *Client, yCard PersonaCard) string {
+	t.Helper()
+	x.MustLike(t, yCard.ID)
+
+	res := y.MustLike(t, xCard.ID)
+	if !res.Matched || res.MatchID == nil {
+		t.Fatalf("mutual like did not create a match: %+v", res)
+	}
+	return *res.MatchID
 }
 
 // UpdateProfile は結果を検証せずに B属性を保存する。

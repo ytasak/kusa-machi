@@ -13,7 +13,12 @@ import (
 )
 
 const listMatches = `-- name: ListMatches :many
-SELECT p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.like_recovery_anchor_at
+SELECT
+    m.id AS match_id,
+    p.id, p.participant_id, p.age, p.gender, p.height_cm, p.education, p.occupation, p.annual_income, p.name, p.hobby, p.bio, p.exposure_count, p.created_at, p.photo_updated_at, p.profile_reward_claimed, p.match_reward_count, p.like_balance, p.like_recovery_anchor_at,
+    EXISTS (
+        SELECT 1 FROM match_children c WHERE c.match_id = m.id
+    ) AS child_generated
 FROM matches m
 JOIN personas p ON p.id = CASE
     WHEN m.persona_low_id = $1 THEN m.persona_high_id
@@ -24,35 +29,48 @@ WHERE m.persona_low_id = $1
 ORDER BY m.created_at DESC, m.id DESC
 `
 
-// 各 Match の相手 Persona だけを新しい順に返す。
-func (q *Queries) ListMatches(ctx context.Context, personaID uuid.UUID) ([]Persona, error) {
+type ListMatchesRow struct {
+	MatchID        uuid.UUID
+	Persona        Persona
+	ChildGenerated bool
+}
+
+// 各 Match の相手 Persona を新しい順に返す。
+//
+// match_id を添えるのは、一覧のカードから Match 詳細を開けるようにするため。
+// child_generated は子ガチャを引いたかどうかで、一覧では「👶 子あり」の
+// 目印と、詳細を開いたときに演出を出すかどうかの判断に使う。子の中身そのものは
+// 一覧には出さない。
+func (q *Queries) ListMatches(ctx context.Context, personaID uuid.UUID) ([]ListMatchesRow, error) {
 	rows, err := q.db.Query(ctx, listMatches, personaID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	items := []Persona{}
+	items := []ListMatchesRow{}
 	for rows.Next() {
-		var i Persona
+		var i ListMatchesRow
 		if err := rows.Scan(
-			&i.ID,
-			&i.ParticipantID,
-			&i.Age,
-			&i.Gender,
-			&i.HeightCm,
-			&i.Education,
-			&i.Occupation,
-			&i.AnnualIncome,
-			&i.Name,
-			&i.Hobby,
-			&i.Bio,
-			&i.ExposureCount,
-			&i.CreatedAt,
-			&i.PhotoUpdatedAt,
-			&i.ProfileRewardClaimed,
-			&i.MatchRewardCount,
-			&i.LikeBalance,
-			&i.LikeRecoveryAnchorAt,
+			&i.MatchID,
+			&i.Persona.ID,
+			&i.Persona.ParticipantID,
+			&i.Persona.Age,
+			&i.Persona.Gender,
+			&i.Persona.HeightCm,
+			&i.Persona.Education,
+			&i.Persona.Occupation,
+			&i.Persona.AnnualIncome,
+			&i.Persona.Name,
+			&i.Persona.Hobby,
+			&i.Persona.Bio,
+			&i.Persona.ExposureCount,
+			&i.Persona.CreatedAt,
+			&i.Persona.PhotoUpdatedAt,
+			&i.Persona.ProfileRewardClaimed,
+			&i.Persona.MatchRewardCount,
+			&i.Persona.LikeBalance,
+			&i.Persona.LikeRecoveryAnchorAt,
+			&i.ChildGenerated,
 		); err != nil {
 			return nil, err
 		}

@@ -3,6 +3,8 @@ package handler
 import (
 	"net/http"
 
+	"github.com/google/uuid"
+
 	"kusamachi/internal/db/sqlc"
 	"kusamachi/internal/http/middleware"
 	"kusamachi/internal/http/response"
@@ -21,6 +23,18 @@ type sentLikeCard struct {
 
 type sentLikeListResponse struct {
 	Personas []sentLikeCard `json:"personas"`
+}
+
+// matchCard は Match 一覧の1件。相手の公開カードに、詳細を開くための match_id と
+// 子ガチャを引いたかどうかの目印を添える。子の中身は一覧には出さない。
+type matchCard struct {
+	personaCard
+	MatchID        uuid.UUID `json:"match_id"`
+	ChildGenerated bool      `json:"child_generated"`
+}
+
+type matchListResponse struct {
+	Personas []matchCard `json:"personas"`
 }
 
 // ReceivedLikes は GET /api/likes/received を実装する。
@@ -114,7 +128,16 @@ func (h *Handler) Matches(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response.JSON(w, http.StatusOK, personaListResponse{Personas: toCards(rows)})
+	cards := make([]matchCard, 0, len(rows))
+	for _, row := range rows {
+		cards = append(cards, matchCard{
+			personaCard:    newPersonaCard(row.Persona),
+			MatchID:        row.MatchID,
+			ChildGenerated: row.ChildGenerated,
+		})
+	}
+
+	response.JSON(w, http.StatusOK, matchListResponse{Personas: cards})
 }
 
 func toCards(rows []sqlc.Persona) []personaCard {
